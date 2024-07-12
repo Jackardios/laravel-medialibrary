@@ -10,6 +10,8 @@ use Spatie\Image\Enums\Constraint;
 use Spatie\Image\Enums\CropPosition;
 use Spatie\Image\Enums\Fit;
 use Spatie\Image\Enums\FlipDirection;
+use Spatie\Image\Enums\Orientation;
+use Spatie\Image\Enums\Unit;
 
 /** @mixin \Spatie\Image\Drivers\ImageDriver */
 class Manipulations
@@ -59,17 +61,42 @@ class Manipulations
     public function apply(ImageDriver $image): void
     {
         foreach ($this->manipulations as $manipulationName => $parameters) {
-            match ($manipulationName) {
-                'border' => (isset($parameters['type'])) && $parameters['type'] = BorderType::from($parameters['type']),
-                'watermark' => (isset($parameters['fit'])) && $parameters['fit'] = Fit::from($parameters['fit']),
-                'watermark','resizeCanvas','insert' => (isset($parameters['position'])) && $parameters['position'] = AlignPosition::from($parameters['position']),
-                'pickColor' => (isset($parameters['colorFormat'])) && $parameters['colorFormat'] = ColorFormat::from($parameters['colorFormat']),
-                'resize','width','height' => (isset($parameters['constraints'])) && $parameters['constraints'] = Constraint::from($parameters['constraints']),
-                'crop' => (isset($parameters['position'])) && $parameters['position'] = CropPosition::from($parameters['position']),
-                'fit' => (isset($parameters['fit'])) && $parameters['fit'] = Fit::from($parameters['fit']),
-                'flip' => (isset($parameters['flip'])) && $parameters['flip'] = FlipDirection::from($parameters['flip']),
-                default => ''
-            };
+            if (in_array($manipulationName, ['fit', 'watermark'])) {
+                $this->convertParameterToEnumIfExists($parameters, 'fit', Fit::class);
+            }
+
+            if ($manipulationName === 'border') {
+                $this->convertParameterToEnumIfExists($parameters, 'type', BorderType::class);
+            }
+
+            if ($manipulationName === 'pickColor') {
+                $this->convertParameterToEnumIfExists($parameters, 'colorFormat', ColorFormat::class);
+            }
+
+            if ($manipulationName === 'flip') {
+                $this->convertParameterToEnumIfExists($parameters, 'flip', FlipDirection::class);
+            }
+
+            if (in_array($manipulationName, ['resize', 'width', 'height'])) {
+                $this->convertParameterToEnumIfExists($parameters, 'constraints', Constraint::class);
+            }
+
+            if ($manipulationName === 'orientation') {
+                $this->convertParameterToEnumIfExists($parameters, 'orientation', Orientation::class);
+            }
+
+            if ($manipulationName === 'watermark') {
+                $this->convertParameterToEnumIfExists($parameters, 'paddingUnit', Unit::class);
+                $this->convertParameterToEnumIfExists($parameters, 'widthUnit', Unit::class);
+                $this->convertParameterToEnumIfExists($parameters, 'heightUnit', Unit::class);
+            }
+
+            if ($manipulationName === 'crop') {
+                $this->convertParameterToEnumIfExists($parameters, 'position', CropPosition::class);
+            } elseif (in_array($manipulationName, ['watermark', 'resizeCanvas', 'insert'])) {
+                $this->convertParameterToEnumIfExists($parameters, 'position', AlignPosition::class);
+            }
+
             $image->$manipulationName(...$parameters);
         }
     }
@@ -93,5 +120,20 @@ class Manipulations
     public function toArray(): array
     {
         return $this->manipulations;
+    }
+
+    /**
+     * @param array $parameters
+     * @param string $parameterName
+     * @param class-string $enum
+     * @return array
+     */
+    private function convertParameterToEnumIfExists(array &$parameters, string $parameterName, string $enum): array
+    {
+        if (isset($parameters[$parameterName]) && ! ($parameters[$parameterName] instanceof $enum)) {
+            $parameters[$parameterName] = $enum::from($parameters[$parameterName]);
+        }
+
+        return $parameters;
     }
 }
