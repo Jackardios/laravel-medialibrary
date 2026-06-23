@@ -101,7 +101,8 @@ class ResponsiveImage
 
         $fullPath = $path.$this->fileName;
 
-        app(Filesystem::class)->removeFile($this->media, $fullPath);
+        // Responsive images are stored on the conversions disk, which may differ from the original's disk.
+        app(Filesystem::class)->removeFile($this->media, $fullPath, $this->media->conversions_disk);
 
         $responsiveImages = $this->media->responsive_images;
 

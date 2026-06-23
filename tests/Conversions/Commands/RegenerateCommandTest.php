@@ -364,3 +364,48 @@ it('can set updated_at column when regenerating', function () {
 
     expect($media->updated_at)->toBeGreaterThanOrEqual(now()->subSeconds(5));
 });
+
+it('skips existing conversions stored on a separate disk when regenerating only missing', function () {
+    // The original lives on `public`, the conversions on `secondMediaDisk` (disk !== conversions_disk).
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->storingConversionsOnDisk('secondMediaDisk')
+        ->toMediaCollection();
+
+    expect($media->disk)->toBe('public');
+    expect($media->conversions_disk)->toBe('secondMediaDisk');
+
+    $conversion = $media->getPath('thumb');
+    expect($conversion)->toBeFile();
+    $createdAt = filemtime($conversion);
+
+    sleep(1);
+
+    $this->artisan('media-library:regenerate', ['--only-missing' => true]);
+
+    // The conversion already exists on the conversions disk, so onlyMissing must skip it.
+    // Regression: the existence check used `disk` instead of `conversions_disk`, looked in the
+    // wrong disk, never found the file, and needlessly regenerated every conversion.
+    expect(filemtime($conversion))->toBe($createdAt);
+});
+
+it('regenerates missing conversions stored on a separate disk when regenerating only missing', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->storingConversionsOnDisk('secondMediaDisk')
+        ->toMediaCollection();
+
+    $conversion = $media->getPath('thumb');
+    expect($conversion)->toBeFile();
+    $createdAt = filemtime($conversion);
+
+    unlink($conversion);
+    $this->assertFileDoesNotExist($conversion);
+
+    sleep(1);
+
+    $this->artisan('media-library:regenerate', ['--only-missing' => true]);
+
+    expect($conversion)->toBeFile();
+    expect(filemtime($conversion))->toBeGreaterThan($createdAt);
+});

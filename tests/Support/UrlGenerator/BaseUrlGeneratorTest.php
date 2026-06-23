@@ -58,3 +58,18 @@ it('can get the responsive images directory url', function () {
 
     expect($this->urlGenerator->getResponsiveImagesDirectoryUrl())->toEqual('/media/1/responsive-images/');
 });
+
+it('falls back to the originals disk for conversion urls when conversions_disk is null', function () {
+    // Point the application default disk elsewhere so a wrong null-fallback
+    // (Storage::disk(null) → default disk) would be observable in the URL.
+    $this->config->set('filesystems.default', 'secondMediaDisk');
+
+    $media = $this->testModelWithConversion->addMedia($this->getTestJpg())->toMediaCollection();
+
+    // Legacy / non-FileAdder rows can carry a null conversions_disk.
+    $media->conversions_disk = null;
+
+    // With the fix the conversion URL resolves against the originals disk ('public', /media),
+    // not the application default disk ('secondMediaDisk', /media2).
+    expect($media->getUrl('thumb'))->toEqual("/media/{$media->id}/conversions/test-thumb.jpg");
+});

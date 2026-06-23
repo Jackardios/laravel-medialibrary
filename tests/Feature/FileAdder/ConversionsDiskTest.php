@@ -65,3 +65,36 @@ it('will store the conversion on the disk specified in on the media collection',
     );
     expect($conversionsFilePath)->toBeFile();
 });
+
+test('Filesystem::removeResponsiveImages deletes responsive images stored on the separate conversions disk', function () {
+    $media = $this->testModelWithResponsiveImages
+        ->addMedia($this->getTestJpg())
+        ->storingConversionsOnDisk('secondMediaDisk')
+        ->toMediaCollection();
+
+    expect($media->disk)->toEqual('public');
+    expect($media->conversions_disk)->toEqual('secondMediaDisk');
+
+    $responsiveImagePath = $this->getTempDirectory("media2/{$media->id}/responsive-images/test___thumb_50_41.jpg");
+    expect($responsiveImagePath)->toBeFile();
+
+    app(\Spatie\MediaLibrary\MediaCollections\Filesystem::class)->removeResponsiveImages($media, 'thumb');
+
+    $this->assertFileDoesNotExist($responsiveImagePath);
+});
+
+test('DefaultFileRemover::removeResponsiveImages deletes responsive images stored on the separate conversions disk', function () {
+    $media = $this->testModelWithResponsiveImages
+        ->addMedia($this->getTestJpg())
+        ->storingConversionsOnDisk('secondMediaDisk')
+        ->toMediaCollection();
+
+    expect($media->conversions_disk)->toEqual('secondMediaDisk');
+
+    $responsiveImagePath = $this->getTempDirectory("media2/{$media->id}/responsive-images/test___thumb_50_41.jpg");
+    expect($responsiveImagePath)->toBeFile();
+
+    app(\Spatie\MediaLibrary\Support\FileRemover\DefaultFileRemover::class)->removeResponsiveImages($media, 'thumb');
+
+    $this->assertFileDoesNotExist($responsiveImagePath);
+});

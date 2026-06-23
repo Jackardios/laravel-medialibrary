@@ -49,3 +49,32 @@ it('will throw an exception when attaching a media specifying a non-existing con
 
     Mail::send($mailable);
 })->throws(InvalidConversion::class);
+
+it('creates a conversion attachment that reads from the separate conversions disk', function () {
+    // beforeEach already consumed test.jpg, so use another fixture as the source.
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('smallTest.jpg'))
+        ->storingConversionsOnDisk('secondMediaDisk')
+        ->toMediaCollection();
+
+    expect($media->disk)->toEqual('public');
+    expect($media->conversions_disk)->toEqual('secondMediaDisk');
+
+    // The conversion file only exists on the conversions disk.
+    $conversionFile = $media->getPath('thumb');
+    expect($conversionFile)->toBeFile();
+
+    // Resolve the attachment's data through its storage resolver. With the bug the
+    // attachment read from `disk` (public), where the conversion file does not exist.
+    $resolvedData = null;
+    $media->mailAttachment('thumb')->attachWith(
+        fn (Closure $path) => null,
+        function (Closure $data) use (&$resolvedData) {
+            $resolvedData = $data();
+
+            return null;
+        }
+    );
+
+    expect($resolvedData)->toEqual(file_get_contents($conversionFile));
+});

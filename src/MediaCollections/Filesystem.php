@@ -226,18 +226,20 @@ class Filesystem
         $fileRemover->removeAllFiles($media);
     }
 
-    public function removeFile(Media $media, string $path): void
+    public function removeFile(Media $media, string $path, ?string $disk = null): void
     {
         $fileRemover = FileRemoverFactory::create($media);
 
-        $fileRemover->removeFile($path, $media->disk);
+        $fileRemover->removeFile($path, $disk ?? $media->disk);
     }
 
     public function removeResponsiveImages(Media $media, string $conversionName = 'media_library_original'): void
     {
         $responsiveImagesDirectory = $this->getResponsiveImagesDirectory($media);
 
-        $allFilePaths = $this->filesystem->disk($media->disk)->allFiles($responsiveImagesDirectory);
+        // Responsive images are stored on the `conversions_disk` (see copyToMediaLibrary),
+        // which may differ from the original's `disk` — list and delete from the same disk.
+        $allFilePaths = $this->filesystem->disk($media->conversions_disk)->allFiles($responsiveImagesDirectory);
 
         $responsiveImagePaths = array_filter(
             $allFilePaths,
@@ -245,7 +247,7 @@ class Filesystem
 
         );
 
-        $this->filesystem->disk($media->disk)->delete($responsiveImagePaths);
+        $this->filesystem->disk($media->conversions_disk)->delete($responsiveImagePaths);
     }
 
     public function syncFileNames(Media $media): void

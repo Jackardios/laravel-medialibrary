@@ -489,7 +489,10 @@ class Media extends Model implements Attachable, Htmlable, Responsable
 
     public function mailAttachment(string $conversion = ''): Attachment
     {
-        $attachment = Attachment::fromStorageDisk($this->disk, $this->getPathRelativeToRoot($conversion))->as($this->file_name);
+        // A conversion is read from the `conversions_disk`, which may differ from the original's `disk`.
+        $disk = $conversion === '' ? $this->disk : ($this->conversions_disk ?? $this->disk);
+
+        $attachment = Attachment::fromStorageDisk($disk, $this->getPathRelativeToRoot($conversion))->as($this->file_name);
 
         if ($this->mime_type) {
             $attachment->withMime($this->mime_type);

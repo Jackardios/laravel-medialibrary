@@ -143,14 +143,17 @@ class CleanCommand extends Command
         $conversionFilePaths = ConversionCollection::createForMedia($media)->getConversionsFiles($media->collection_name);
 
         $conversionPath = PathGeneratorFactory::create($media)->getPathForConversions($media);
-        $currentFilePaths = $this->fileSystem->disk($media->disk)->files($conversionPath);
+
+        // Conversions are stored on the `conversions_disk`, which may differ from the
+        // original's `disk` — list and delete deprecated conversion files from that disk.
+        $currentFilePaths = $this->fileSystem->disk($media->conversions_disk)->files($conversionPath);
 
         collect($currentFilePaths)
             ->reject(fn (string $currentFilePath) => $conversionFilePaths->contains(basename($currentFilePath)))
             ->reject(fn (string $currentFilePath) => $media->file_name === basename($currentFilePath))
             ->each(function (string $currentFilePath) use ($media) {
                 if (! $this->isDryRun) {
-                    $this->fileSystem->disk($media->disk)->delete($currentFilePath);
+                    $this->fileSystem->disk($media->conversions_disk)->delete($currentFilePath);
 
                     $this->markConversionAsRemoved($media, $currentFilePath);
                 }

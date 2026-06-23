@@ -59,13 +59,17 @@ class FileManipulator
 
         $conversions
             ->reject(function (Conversion $conversion) use ($onlyMissing, $media) {
+                // Conversions are stored on the `conversions_disk`, which may differ from the
+                // original's `disk` (e.g. private originals, public conversions). `getPath()`
+                // already resolves against `conversions_disk`, so the existence check must use
+                // the same disk — otherwise `onlyMissing` looks in the wrong place and never skips.
                 $relativePath = $media->getPath($conversion->getName());
 
-                if ($rootPath = config("filesystems.disks.{$media->disk}.root")) {
+                if ($rootPath = config("filesystems.disks.{$media->conversions_disk}.root")) {
                     $relativePath = str_replace($rootPath, '', $relativePath);
                 }
 
-                return $onlyMissing && Storage::disk($media->disk)->exists($relativePath);
+                return $onlyMissing && Storage::disk($media->conversions_disk)->exists($relativePath);
             })
             ->each(function (Conversion $conversion) use ($media, $copiedOriginalFile) {
                 (new PerformConversionAction())->execute($conversion, $media, $copiedOriginalFile);

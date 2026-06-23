@@ -381,3 +381,56 @@ it('will not clean media items on soft deleted models', function () {
         'id' => $media->id,
     ]);
 });
+
+it('cleans deprecated conversion files when conversions are stored on a separate disk', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestJpg())
+        ->storingConversionsOnDisk('secondMediaDisk')
+        ->toMediaCollection();
+
+    expect($media->disk)->toEqual('public');
+    expect($media->conversions_disk)->toEqual('secondMediaDisk');
+
+    $validConversion = $this->getTempDirectory("media2/{$media->id}/conversions/test-thumb.jpg");
+    $deprecatedConversion = $this->getTempDirectory("media2/{$media->id}/conversions/test-deprecated.jpg");
+
+    expect($validConversion)->toBeFile();
+    touch($deprecatedConversion);
+
+    $this->artisan('media-library:clean');
+
+    // Regression: the cleanup listed/deleted conversion files on `disk` instead of
+    // `conversions_disk`, so on a separate disk it found nothing and left them behind.
+    $this->assertFileDoesNotExist($deprecatedConversion);
+    expect($validConversion)->toBeFile();
+});
+
+it('cleans deprecated responsive images when conversions are stored on a separate disk', function () {
+    $media = $this->testModelWithResponsiveImages
+        ->addMedia($this->getTestJpg())
+        ->preservingOriginal()
+        ->storingConversionsOnDisk('secondMediaDisk')
+        ->toMediaCollection();
+
+    expect($media->conversions_disk)->toEqual('secondMediaDisk');
+
+    $deprecatedResponsiveImageFileName = "{$media->file_name}___deprecatedConversion_50_41.jpg";
+    $deprecatedResponsiveImagesPath = $this->getTempDirectory("media2/{$media->id}/responsive-images/{$deprecatedResponsiveImageFileName}");
+    touch($deprecatedResponsiveImagesPath);
+
+    $originalResponsiveImagesContent = $media->responsive_images;
+    $newResponsiveImages = $originalResponsiveImagesContent;
+    $newResponsiveImages['deprecatedConversion'] = $originalResponsiveImagesContent['thumb'];
+    $newResponsiveImages['deprecatedConversion']['urls'][0] = $deprecatedResponsiveImageFileName;
+    $media->responsive_images = $newResponsiveImages;
+    $media->save();
+
+    $this->artisan('media-library:clean');
+
+    $media->refresh();
+
+    // Regression: ResponsiveImage::delete -> Filesystem::removeFile used `disk`, not
+    // `conversions_disk`, so deprecated responsive images on a separate disk were left behind.
+    expect($media->responsive_images)->toEqual($originalResponsiveImagesContent);
+    $this->assertFileDoesNotExist($deprecatedResponsiveImagesPath);
+});
