@@ -189,6 +189,7 @@ return [
     'jobs' => [
         'perform_conversions' => Spatie\MediaLibrary\Conversions\Jobs\PerformConversionsJob::class,
         'generate_responsive_images' => Spatie\MediaLibrary\ResponsiveImages\Jobs\GenerateResponsiveImagesJob::class,
+        'regenerate_media' => Spatie\MediaLibrary\Conversions\Jobs\RegenerateMediaJob::class,
     ],
 
     /*

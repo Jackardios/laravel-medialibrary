@@ -30,11 +30,13 @@ class ResponsiveImageGenerator
         $this->fileNamer = app(config('media-library.file_namer'));
     }
 
-    public function generateResponsiveImages(Media $media): void
+    public function generateResponsiveImages(Media $media, ?string $baseImage = null): void
     {
         $temporaryDirectory = TemporaryDirectory::create();
 
-        $baseImage = app(Filesystem::class)->copyFromMediaLibrary(
+        // Callers that already have a local copy of the original (e.g. the regenerate pipeline,
+        // which downloads it once for the conversions) can pass it in to avoid a second download.
+        $baseImage ??= app(Filesystem::class)->copyFromMediaLibrary(
             $media,
             $temporaryDirectory->path(Str::random(16).'.'.$media->extension)
         );

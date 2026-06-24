@@ -1,5 +1,13 @@
 <?php
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
+use Spatie\MediaLibrary\Conversions\Conversion;
+use Spatie\MediaLibrary\Conversions\ConversionCollection;
+use Spatie\MediaLibrary\Conversions\FileManipulator;
+use Spatie\MediaLibrary\Conversions\Jobs\RegenerateMediaJob;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Spatie\MediaLibrary\ResponsiveImages\ResponsiveImageGenerator;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithConversion;
 
 it('can regenerate all files', function () {
@@ -45,8 +53,11 @@ it('can regenerate only missing files', function () {
 
     sleep(1);
 
+    // The DB still marks `thumb` as generated (only the file was removed), so `--verify-existence`
+    // is required to detect the on-disk gap and regenerate it.
     $this->artisan('media-library:regenerate', [
         '--only-missing' => true,
+        '--verify-existence' => true,
     ]);
 
     expect($derivedMissingImage)->toBeFile();
@@ -83,6 +94,7 @@ it('can regenerate missing files queued', function () {
 
     $this->artisan('media-library:regenerate', [
         '--only-missing' => true,
+        '--verify-existence' => true,
     ]);
 
     expect($derivedMissingImage)->toBeFile();
@@ -143,6 +155,7 @@ it('can regenerate only missing files of named conversions', function () {
 
     $this->artisan('media-library:regenerate', [
         '--only-missing' => true,
+        '--verify-existence' => true,
         '--only' => 'thumb',
     ]);
 
@@ -381,7 +394,11 @@ it('skips existing conversions stored on a separate disk when regenerating only 
 
     sleep(1);
 
-    $this->artisan('media-library:regenerate', ['--only-missing' => true]);
+    // --verify-existence forces the on-disk check, which must resolve against `conversions_disk`.
+    $this->artisan('media-library:regenerate', [
+        '--only-missing' => true,
+        '--verify-existence' => true,
+    ]);
 
     // The conversion already exists on the conversions disk, so onlyMissing must skip it.
     // Regression: the existence check used `disk` instead of `conversions_disk`, looked in the
@@ -404,8 +421,194 @@ it('regenerates missing conversions stored on a separate disk when regenerating 
 
     sleep(1);
 
-    $this->artisan('media-library:regenerate', ['--only-missing' => true]);
+    $this->artisan('media-library:regenerate', [
+        '--only-missing' => true,
+        '--verify-existence' => true,
+    ]);
 
     expect($conversion)->toBeFile();
     expect(filemtime($conversion))->toBeGreaterThan($createdAt);
+});
+
+it('regenerates conversions the database marks as not generated when regenerating only missing', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    $thumb = $this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg");
+    $createdAt = filemtime($thumb);
+
+    // The file is still present, but the database no longer marks it as generated. By default
+    // `--only-missing` trusts the column, so the conversion must be regenerated without any
+    // storage existence check.
+    $media->markAsConversionNotGenerated('thumb');
+
+    sleep(1);
+
+    $this->artisan('media-library:regenerate', ['--only-missing' => true]);
+
+    expect(filemtime($thumb))->toBeGreaterThan($createdAt);
+});
+
+it('skips conversions the database marks as generated when regenerating only missing', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    $thumb = $this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg");
+
+    // Remove the file but keep the DB flag. The default (no --verify-existence) trusts the column,
+    // so the conversion must be skipped and the file must stay missing.
+    unlink($thumb);
+    $this->assertFileDoesNotExist($thumb);
+
+    $this->artisan('media-library:regenerate', ['--only-missing' => true]);
+
+    $this->assertFileDoesNotExist($thumb);
+});
+
+it('dispatches a regenerate job per media when the configured queue connection is async', function () {
+    $media1 = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->preservingOriginal()
+        ->toMediaCollection('images');
+
+    $media2 = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    // An async connection means the command offloads to workers instead of running inline.
+    config(['media-library.queue_connection_name' => 'redis']);
+
+    Queue::fake();
+
+    $this->artisan('media-library:regenerate');
+
+    Queue::assertPushed(RegenerateMediaJob::class, 2);
+    Queue::assertPushed(RegenerateMediaJob::class, fn (RegenerateMediaJob $job) => $job->connection === 'redis');
+});
+
+it('regenerates inline without dispatching jobs when the queue connection is sync', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    $thumb = $this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg");
+    unlink($thumb);
+    $this->assertFileDoesNotExist($thumb);
+
+    Queue::fake();
+
+    // The default test connection is sync, so the command must regenerate inline.
+    $this->artisan('media-library:regenerate');
+
+    Queue::assertNothingPushed();
+    expect($thumb)->toBeFile();
+});
+
+it('dispatches jobs when --queue-connection points at an async connection', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    Queue::fake();
+
+    $this->artisan('media-library:regenerate', ['--queue-connection' => 'redis']);
+
+    Queue::assertPushed(RegenerateMediaJob::class, 1);
+});
+
+it('regenerates derived files when the queued regenerate job is handled', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    $thumb = $this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg");
+
+    unlink($thumb);
+    $this->assertFileDoesNotExist($thumb);
+
+    (new RegenerateMediaJob($media))->handle(app(FileManipulator::class));
+
+    expect($thumb)->toBeFile();
+});
+
+it('still regenerates responsive images when a conversion fails', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->withResponsiveImages()
+        ->toMediaCollection();
+
+    // Reload so the persisted `responsive_images` is present on the instance.
+    $media->refresh();
+
+    // A failing conversion must not prevent responsive images from being (re)generated.
+    $responsiveGenerator = $this->mock(ResponsiveImageGenerator::class);
+    $responsiveGenerator->shouldReceive('generateResponsiveImages')->once();
+
+    $fileManipulator = new class extends FileManipulator
+    {
+        protected function performConversionsOnCopiedFile(
+            ConversionCollection $conversions,
+            Media $media,
+            string $copiedOriginalFile
+        ): void {
+            throw new RuntimeException('conversion failed');
+        }
+    };
+
+    expect(fn () => $fileManipulator->regenerateDerivedFiles($media, [], false, true))
+        ->toThrow(RuntimeException::class, 'conversion failed');
+});
+
+it('reuses the downloaded original for responsive images instead of downloading it again', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->withResponsiveImages()
+        ->toMediaCollection();
+
+    $media->refresh();
+
+    $captured = ['baseImage' => false, 'existedDuringCall' => false];
+
+    $responsiveGenerator = $this->mock(ResponsiveImageGenerator::class);
+    $responsiveGenerator->shouldReceive('generateResponsiveImages')
+        ->once()
+        ->andReturnUsing(function (Media $media, ?string $baseImage = null) use (&$captured) {
+            $captured['baseImage'] = $baseImage;
+            $captured['existedDuringCall'] = $baseImage !== null && file_exists($baseImage);
+        });
+
+    app(FileManipulator::class)->regenerateDerivedFiles($media, [], false, true);
+
+    // A non-null base image that exists at call time proves the already-downloaded original was
+    // handed to the responsive generator instead of being fetched from the disk a second time.
+    expect($captured['baseImage'])->toBeString()
+        ->and($captured['existedDuringCall'])->toBeTrue();
+});
+
+it('persists regenerated conversions with a single database write per media', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection();
+
+    // Force both registered conversions to be regenerated.
+    $media->markAsConversionNotGenerated('thumb');
+    $media->markAsConversionNotGenerated('keep_original_format');
+    $media->save();
+
+    $media = $media->fresh();
+
+    DB::connection()->flushQueryLog();
+    DB::connection()->enableQueryLog();
+
+    app(FileManipulator::class)->regenerateDerivedFiles($media);
+
+    DB::connection()->disableQueryLog();
+
+    $updateQueries = collect(DB::connection()->getQueryLog())
+        ->filter(fn (array $entry) => str_starts_with(strtolower(ltrim($entry['query'])), 'update'));
+
+    // One save for all conversions, not one per conversion.
+    expect($updateQueries)->toHaveCount(1);
 });

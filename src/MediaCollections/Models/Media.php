@@ -282,7 +282,7 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         return collect($this->generated_conversions ?? []);
     }
 
-    public function markAsConversionGenerated(string $conversionName): self
+    public function markAsConversionGenerated(string $conversionName, bool $persist = true): self
     {
         $generatedConversions = $this->generated_conversions;
 
@@ -290,7 +290,12 @@ class Media extends Model implements Attachable, Htmlable, Responsable
 
         $this->generated_conversions = $generatedConversions;
 
-        $this->saveOrTouch();
+        // When generating several conversions for the same media in one pass, callers can
+        // defer persistence (`$persist = false`) and issue a single `saveOrTouch()` afterwards
+        // instead of one write per conversion.
+        if ($persist) {
+            $this->saveOrTouch();
+        }
 
         return $this;
     }
@@ -506,7 +511,7 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         return $this->mailAttachment();
     }
 
-    protected function saveOrTouch(): bool
+    public function saveOrTouch(): bool
     {
         if (! $this->exists || $this->isDirty()) {
             return $this->save();

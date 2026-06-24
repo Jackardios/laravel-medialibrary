@@ -43,25 +43,48 @@ class MediaRepository
 
     public function all(): DbCollection
     {
-        return $this->query()->get();
+        return $this->queryAll()->get();
     }
 
     public function getByModelType(string $modelType): DbCollection
     {
-        return $this->query()->where('model_type', $modelType)->get();
+        return $this->queryByModelType($modelType)->get();
     }
 
     public function getByIds(array $ids): DbCollection
     {
-        return $this->query()->whereIn($this->model->getKeyName(), $ids)->get();
+        return $this->queryByIds($ids)->get();
     }
 
     public function getByIdGreaterThan(int $startingFromId, bool $excludeStartingId = false, string $modelType = ''): DbCollection
     {
+        return $this->queryByIdGreaterThan($startingFromId, $excludeStartingId, $modelType)->get();
+    }
+
+    /** @return Builder<Media> */
+    public function queryAll(): Builder
+    {
+        return $this->query();
+    }
+
+    /** @return Builder<Media> */
+    public function queryByModelType(string $modelType): Builder
+    {
+        return $this->query()->where('model_type', $modelType);
+    }
+
+    /** @return Builder<Media> */
+    public function queryByIds(array $ids): Builder
+    {
+        return $this->query()->whereIn($this->model->getKeyName(), $ids);
+    }
+
+    /** @return Builder<Media> */
+    public function queryByIdGreaterThan(int $startingFromId, bool $excludeStartingId = false, string $modelType = ''): Builder
+    {
         return $this->query()
             ->where($this->model->getKeyName(), $excludeStartingId ? '>' : '>=', $startingFromId)
-            ->when($modelType !== '', fn (Builder $q) => $q->where('model_type', $modelType))
-            ->get();
+            ->when($modelType !== '', fn (Builder $q) => $q->where('model_type', $modelType));
     }
 
     public function getByModelTypeAndCollectionName(string $modelType, string $collectionName): DbCollection
@@ -92,6 +115,7 @@ class MediaRepository
             ->get();
     }
 
+    /** @return Builder<Media> */
     protected function query(): Builder
     {
         return $this->model->newQuery();

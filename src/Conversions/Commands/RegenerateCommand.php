@@ -2,15 +2,16 @@
 
 namespace Spatie\MediaLibrary\Conversions\Commands;
 
-use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Spatie\MediaLibrary\Conversions\FileManipulator;
+use Spatie\MediaLibrary\Conversions\Jobs\RegenerateMediaJob;
 use Spatie\MediaLibrary\MediaCollections\MediaRepository;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Throwable;
 
 class RegenerateCommand extends Command
 {
@@ -21,7 +22,10 @@ class RegenerateCommand extends Command
     {--starting-from-id= : Regenerate media with an id equal to or higher than the provided value}
     {--X|exclude-starting-id : Exclude the provided id when regenerating from a specific id}
     {--only-missing : Regenerate only missing conversions}
+    {--verify-existence : With --only-missing, confirm each conversion file exists on disk (slower; one request per conversion on remote disks)}
     {--with-responsive-images : Regenerate responsive images}
+    {--eager-models : Eager load the related model (avoids an N+1 for conversions registered using the model instance)}
+    {--queue-connection= : Dispatch a job per media onto this queue connection (overrides media-library.queue_connection_name; point it at an async connection to offload regeneration even when the configured one is sync)}
     {--force : Force the operation to run when in production}';
 
     protected $description = 'Regenerate the derived images of media';
@@ -42,23 +46,64 @@ class RegenerateCommand extends Command
             return;
         }
 
-        $mediaFiles = $this->getMediaToBeRegenerated();
+        $only = Arr::wrap($this->option('only'));
+        $onlyMissing = (bool) $this->option('only-missing');
+        $withResponsiveImages = (bool) $this->option('with-responsive-images');
+        $verifyExistence = (bool) $this->option('verify-existence');
 
-        $progressBar = $this->output->createProgressBar($mediaFiles->count());
+        if ($verifyExistence && ! $onlyMissing) {
+            $this->warn('The --verify-existence option only has an effect together with --only-missing; ignoring it.');
+            $verifyExistence = false;
+        }
 
-        if (config('media-library.queue_connection_name') === 'sync') {
+        // Respect the configured queue connection, just like the rest of the package: a `sync`
+        // connection regenerates inline in this process, an async connection offloads one job
+        // per media to the workers. `--queue-connection` overrides the connection for a single run.
+        $connection = $this->resolveQueueConnection();
+        $shouldDispatch = $connection !== 'sync';
+
+        $query = $this->getMediaQueryToBeRegenerated();
+
+        // Drive the progress bar from a cheap COUNT instead of materialising the whole table.
+        $progressBar = $this->output->createProgressBar($query->count());
+
+        if ($this->option('eager-models')) {
+            $query->with('model');
+        }
+
+        if (! $shouldDispatch) {
+            // The whole regeneration runs in this process; lift the execution time limit.
             set_time_limit(0);
         }
 
-        $mediaFiles->each(function (Media $media) use ($progressBar) {
+        $dispatchedJobs = 0;
+
+        // Stream media in id-ordered chunks so memory stays flat regardless of library size.
+        $query->lazyById()->each(function (Media $media) use (
+            $progressBar,
+            $shouldDispatch,
+            $connection,
+            $only,
+            $onlyMissing,
+            $withResponsiveImages,
+            $verifyExistence,
+            &$dispatchedJobs
+        ) {
             try {
-                $this->fileManipulator->createDerivedFiles(
-                    $media,
-                    Arr::wrap($this->option('only')),
-                    $this->option('only-missing'),
-                    $this->option('with-responsive-images')
-                );
-            } catch (Exception $exception) {
+                if ($shouldDispatch) {
+                    $this->dispatchRegenerateJob($media, $connection, $only, $onlyMissing, $withResponsiveImages, $verifyExistence);
+
+                    $dispatchedJobs++;
+                } else {
+                    $this->fileManipulator->regenerateDerivedFiles(
+                        $media,
+                        $only,
+                        $onlyMissing,
+                        $withResponsiveImages,
+                        $verifyExistence
+                    );
+                }
+            } catch (Throwable $exception) {
                 $this->errorMessages[$media->getKey()] = $exception->getMessage();
             }
 
@@ -67,20 +112,28 @@ class RegenerateCommand extends Command
 
         $progressBar->finish();
 
+        $this->newLine(2);
+
         if (count($this->errorMessages)) {
-            $this->warn('All done, but with some error messages:');
+            $this->warn($shouldDispatch
+                ? 'Done queueing, but with some error messages:'
+                : 'All done, but with some error messages:');
 
             foreach ($this->errorMessages as $mediaId => $message) {
                 $this->warn("Media id {$mediaId}: `{$message}`");
             }
         }
 
-        $this->newLine(2);
-
-        $this->info('All done!');
+        if ($shouldDispatch) {
+            $this->info("Queued {$dispatchedJobs} media for regeneration on the '{$connection}' connection.");
+            $this->info('Make sure queue workers are running to process them.');
+        } else {
+            $this->info('All done!');
+        }
     }
 
-    public function getMediaToBeRegenerated(): Collection
+    /** @return Builder<Media> */
+    public function getMediaQueryToBeRegenerated(): Builder
     {
         // Get this arg first as it can also be passed to the greater-than-id branch
         $modelType = $this->argument('modelType');
@@ -89,19 +142,53 @@ class RegenerateCommand extends Command
         if ($startingFromId !== 0) {
             $excludeStartingId = (bool) $this->option('exclude-starting-id') ?: false;
 
-            return $this->mediaRepository->getByIdGreaterThan($startingFromId, $excludeStartingId, is_string($modelType) ? $modelType : '');
+            return $this->mediaRepository->queryByIdGreaterThan($startingFromId, $excludeStartingId, is_string($modelType) ? $modelType : '');
         }
 
         if (is_string($modelType)) {
-            return $this->mediaRepository->getByModelType($modelType);
+            return $this->mediaRepository->queryByModelType($modelType);
         }
 
         $mediaIds = $this->getMediaIds();
         if (count($mediaIds) > 0) {
-            return $this->mediaRepository->getByIds($mediaIds);
+            return $this->mediaRepository->queryByIds($mediaIds);
         }
 
-        return $this->mediaRepository->all();
+        return $this->mediaRepository->queryAll();
+    }
+
+    protected function dispatchRegenerateJob(
+        Media $media,
+        string $connection,
+        array $only,
+        bool $onlyMissing,
+        bool $withResponsiveImages,
+        bool $verifyExistence
+    ): void {
+        $jobClass = config('media-library.jobs.regenerate_media', RegenerateMediaJob::class);
+
+        /** @var RegenerateMediaJob $job */
+        $job = (new $jobClass($media, $only, $onlyMissing, $withResponsiveImages, $verifyExistence))
+            ->onConnection($connection)
+            ->onQueue(config('media-library.queue_name'));
+
+        dispatch($job);
+    }
+
+    /**
+     * Resolve the queue connection the regeneration should run on. An explicit
+     * `--queue-connection` wins; otherwise the package's `queue_connection_name` is used, falling
+     * back to the application's default queue connection. A `sync` result runs inline, anything
+     * else dispatches one job per media.
+     */
+    protected function resolveQueueConnection(): string
+    {
+        return (string) (
+            $this->option('queue-connection')
+            ?: config('media-library.queue_connection_name')
+            ?: config('queue.default')
+            ?: 'sync'
+        );
     }
 
     protected function getMediaIds(): array

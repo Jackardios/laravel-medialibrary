@@ -46,7 +46,9 @@ class PerformConversionAction
 
         app(Filesystem::class)->copyToMediaLibrary($renamedFile, $media, 'conversions');
 
-        $media->markAsConversionGenerated($conversion->getName());
+        // Mark the conversion in memory only; the caller (FileManipulator) persists once
+        // after all conversions for this media have been generated.
+        $media->markAsConversionGenerated($conversion->getName(), persist: false);
 
         event(new ConversionHasBeenCompletedEvent($media, $conversion));
     }
