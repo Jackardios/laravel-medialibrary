@@ -255,6 +255,8 @@ class Filesystem
         $this->renameMediaFile($media);
 
         $this->renameConversionFiles($media);
+
+        $this->renameResponsiveImageFiles($media);
     }
 
     public function syncMediaPath(Media $media): void
@@ -322,6 +324,58 @@ class Filesystem
 
             $disk->move($oldFile, $newFile);
         }
+    }
+
+    protected function renameResponsiveImageFiles(Media $media): void
+    {
+        $responsiveImages = $media->responsive_images;
+
+        if (empty($responsiveImages)) {
+            return;
+        }
+
+        $oldBase = pathinfo($media->getOriginal('file_name'), PATHINFO_FILENAME);
+        $newBase = pathinfo($media->file_name, PATHINFO_FILENAME);
+
+        if ($oldBase === $newBase) {
+            return;
+        }
+
+        $directory = $this->getResponsiveImagesDirectory($media);
+        $disk = $this->filesystem->disk($media->conversions_disk);
+
+        foreach ($responsiveImages as $conversionName => $properties) {
+            if (! isset($properties['urls']) || ! is_array($properties['urls'])) {
+                continue;
+            }
+
+            foreach ($properties['urls'] as $index => $fileName) {
+                // Responsive file names are `{base}___{conversion}_{width}_{height}.{ext}`. Split on the
+                // last `___` (matching ResponsiveImage::stringBetween) so a base that itself contains `___`
+                // is handled correctly.
+                $separatorPosition = strrpos($fileName, '___');
+
+                if ($separatorPosition === false) {
+                    continue;
+                }
+
+                $newFileName = $newBase.substr($fileName, $separatorPosition);
+
+                $oldFile = $directory.$fileName;
+                $newFile = $directory.$newFileName;
+
+                // The physical file might be missing (failed generation, manual deletion, etc.). We still
+                // rewrite the stored name below so the srcset stays consistent and a later regenerate can
+                // recreate the file; leaving the stale name would keep the srcset broken forever.
+                if ($disk->exists($oldFile)) {
+                    $disk->move($oldFile, $newFile);
+                }
+
+                $responsiveImages[$conversionName]['urls'][$index] = $newFileName;
+            }
+        }
+
+        $media->responsive_images = $responsiveImages;
     }
 
     public function getMediaDirectory(Media $media, ?string $type = null): string
