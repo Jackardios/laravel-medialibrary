@@ -18,6 +18,13 @@ class ConversionCollection extends Collection
 {
     protected Media $media;
 
+    /**
+     * Whether the conversions were registered on the media's actual owner model
+     * (`registerMediaConversionsUsingModelInstance`) rather than on a blank one,
+     * so they may depend on that model's state and must not be reused.
+     */
+    protected bool $dependsOnModelInstance = false;
+
     public static function createForMedia(Media $media): self
     {
         return (new static())->setMedia($media);
@@ -47,8 +54,15 @@ class ConversionCollection extends Collection
         return $conversion;
     }
 
+    public function dependsOnModelInstance(): bool
+    {
+        return $this->dependsOnModelInstance;
+    }
+
     protected function addConversionsFromRelatedModel(Media $media): void
     {
+        $this->dependsOnModelInstance = false;
+
         $modelName = Arr::get(Relation::morphMap(), $media->model_type, $media->model_type);
 
         if (! class_exists($modelName)) {
@@ -58,12 +72,16 @@ class ConversionCollection extends Collection
         /** @var \Spatie\MediaLibrary\HasMedia $model */
         $model = new $modelName();
 
+        // Flagged whenever the model opts in, even if this media has no owner loaded
+        // right now: the same media may resolve one on a later call.
+        $this->dependsOnModelInstance = (bool) $model->registerMediaConversionsUsingModelInstance;
+
         /*
          * In some cases the user might want to get the actual model
          * instance so conversion parameters can depend on model
          * properties. This will causes extra queries.
          */
-        if ($model->registerMediaConversionsUsingModelInstance && $media->model) {
+        if ($this->dependsOnModelInstance && $media->model) {
             $model = $media->model;
 
             $model->mediaConversions = [];

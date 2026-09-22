@@ -2,7 +2,6 @@
 
 namespace Spatie\MediaLibrary\Support\UrlGenerator;
 
-use Spatie\MediaLibrary\Conversions\ConversionCollection;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidUrlGenerator;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Support\PathGenerator\PathGeneratorFactory;
@@ -25,7 +24,7 @@ class UrlGeneratorFactory
             ->setPathGenerator($pathGenerator);
 
         if ($conversionName !== '') {
-            $conversion = ConversionCollection::createForMedia($media)->getByName($conversionName);
+            $conversion = $media->getConversionCollection()->getByName($conversionName);
 
             $urlGenerator->setConversion($conversion);
         }

@@ -4,7 +4,6 @@ namespace Spatie\MediaLibrary\MediaCollections;
 
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Arr;
-use Spatie\MediaLibrary\Conversions\ConversionCollection;
 use Spatie\MediaLibrary\Conversions\ImageGenerators\Image;
 use Spatie\MediaLibrary\Conversions\ImageGenerators\ImageGeneratorFactory;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -68,7 +67,7 @@ class HtmlableMedia implements \Stringable, Htmlable
         $loadingAttributeValue = config('media-library.default_loading_attribute_value');
 
         if ($this->conversionName !== '') {
-            $conversionObject = ConversionCollection::createForMedia($this->media)->getByName($this->conversionName);
+            $conversionObject = $this->media->getConversionCollection()->getByName($this->conversionName);
 
             $loadingAttributeValue = $conversionObject->getLoadingAttributeValue();
         }

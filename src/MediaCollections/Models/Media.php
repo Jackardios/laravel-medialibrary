@@ -36,6 +36,7 @@ use Spatie\MediaLibrary\Support\UrlGenerator\UrlGenerator;
 use Spatie\MediaLibrary\Support\UrlGenerator\UrlGeneratorFactory;
 use Spatie\MediaLibraryPro\Models\TemporaryUpload;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use WeakMap;
 
 /**
  * @property string $uuid
@@ -83,6 +84,18 @@ class Media extends Model implements Attachable, Htmlable, Responsable
     ];
 
     protected int $streamChunkSize = (1024 * 1024); // default to 1MB chunks.
+
+    /**
+     * Conversion collections memoized by {@see getConversionCollection()}.
+     *
+     * Kept outside the instance on purpose: a WeakMap entry is not copied by
+     * `clone`, never ends up in `serialize()`/`toArray()`, and goes away with the
+     * media object (on the next cycle collection, since the collection holds its
+     * media).
+     *
+     * @var WeakMap<self, array{0: array<string, mixed>, 1: ConversionCollection}>|null
+     */
+    private static ?WeakMap $conversionCollections = null;
 
     public function newCollection(array $models = []): MediaCollection
     {
@@ -268,6 +281,46 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         $this->custom_properties = $customProperties;
 
         return $this;
+    }
+
+    /**
+     * The conversions registered for this media, built once per media instance.
+     *
+     * Building the collection instantiates the owner model and re-runs every
+     * conversion registration, and URL generation needs it once per URL (each
+     * conversion URL and every srcset entry), so serializing one image used to
+     * rebuild it about ten times.
+     *
+     * The memo is keyed by the raw attributes: any attribute change (collection,
+     * model type, manipulations, or anything else a registration callback may
+     * read from the media) builds a fresh collection. Owners that register
+     * conversions using the model instance are never memoized, because their
+     * conversions may follow the owner's state. The returned collection is
+     * shared, so callers must not mutate it or its conversions; processing paths
+     * that do keep using {@see ConversionCollection::createForMedia()}.
+     */
+    public function getConversionCollection(): ConversionCollection
+    {
+        $memo = self::$conversionCollections ??= new WeakMap();
+        $fingerprint = $this->getAttributes();
+
+        $entry = $memo[$this] ?? null;
+
+        if ($entry !== null && $entry[0] === $fingerprint) {
+            return $entry[1];
+        }
+
+        $conversions = ConversionCollection::createForMedia($this);
+
+        if ($conversions->dependsOnModelInstance()) {
+            unset($memo[$this]);
+
+            return $conversions;
+        }
+
+        $memo[$this] = [$fingerprint, $conversions];
+
+        return $conversions;
     }
 
     public function getMediaConversionNames(): array
