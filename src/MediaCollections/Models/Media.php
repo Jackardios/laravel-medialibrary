@@ -335,7 +335,7 @@ class Media extends Model implements Attachable, Htmlable, Responsable
      */
     public function getConversionCollection(): ConversionCollection
     {
-        $memo = self::$conversionCollections ??= new WeakMap();
+        $memo = self::$conversionCollections ??= new WeakMap;
         $fingerprint = $this->getAttributes();
 
         $entry = $memo[$this] ?? null;
