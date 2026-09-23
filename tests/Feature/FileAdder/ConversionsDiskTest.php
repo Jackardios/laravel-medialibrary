@@ -15,14 +15,14 @@ it('can save conversions on a separate disk', function () {
     $originalFilePath = $media->getPath();
 
     $this->assertEquals(
-        $this->getTestsPath('TestSupport/temp/media/1/test.jpg'),
+        $this->getTempDirectory('media/1/test.jpg'),
         $originalFilePath
     );
     expect($originalFilePath)->toBeFile();
 
     $conversionsFilePath = $media->getPath('thumb');
     $this->assertEquals(
-        $this->getTestsPath('TestSupport/temp/media2/1/conversions/test-thumb.jpg'),
+        $this->getTempDirectory('media2/1/conversions/test-thumb.jpg'),
         $conversionsFilePath
     );
     expect($conversionsFilePath)->toBeFile();
@@ -60,7 +60,7 @@ it('will store the conversion on the disk specified in on the media collection',
 
     $conversionsFilePath = $media->getPath('thumb');
     $this->assertEquals(
-        $this->getTestsPath('TestSupport/temp/media2/1/conversions/test-thumb.jpg'),
+        $this->getTempDirectory('media2/1/conversions/test-thumb.jpg'),
         $conversionsFilePath
     );
     expect($conversionsFilePath)->toBeFile();
@@ -78,7 +78,7 @@ it('uses the globally configured conversions disk when no other disk is specifie
 
     expect($media->getPath('thumb'))->toBeFile();
     $this->assertEquals(
-        $this->getTestsPath('TestSupport/temp/media2/1/conversions/test-thumb.jpg'),
+        $this->getTempDirectory('media2/1/conversions/test-thumb.jpg'),
         $media->getPath('thumb')
     );
 });

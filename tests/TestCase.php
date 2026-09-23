@@ -204,7 +204,11 @@ abstract class TestCase extends Orchestra
 
     public function getTempDirectory(string $suffix = ''): string
     {
-        return __DIR__.'/TestSupport/temp'.($suffix == '' ? '' : '/'.$suffix);
+        // Each `--parallel` worker gets its own directory: every test wipes and recreates it.
+        $token = getenv('TEST_TOKEN');
+        $directory = __DIR__.'/TestSupport/temp'.($token === false || $token === '' ? '' : '-'.$token);
+
+        return $directory.($suffix == '' ? '' : '/'.$suffix);
     }
 
     public function getMediaDirectory(string $suffix = ''): string
