@@ -19,15 +19,15 @@ class PerformConversionAction
     ): void {
         $imageGenerator = ImageGeneratorFactory::forMedia($media);
 
-        $copiedOriginalFile = $imageGenerator->convert($copiedOriginalFile, $conversion);
+        $imageFile = $imageGenerator->convert($copiedOriginalFile, $conversion);
 
-        if (! $copiedOriginalFile) {
+        if (! $imageFile) {
             return;
         }
 
-        event(new ConversionWillStartEvent($media, $conversion, $copiedOriginalFile));
+        event(new ConversionWillStartEvent($media, $conversion, $imageFile));
 
-        $manipulationResult = (new PerformManipulationsAction)->execute($media, $conversion, $copiedOriginalFile);
+        $manipulationResult = (new PerformManipulationsAction)->execute($media, $conversion, $imageFile);
 
         if (! $manipulationResult) {
             return;
@@ -35,7 +35,11 @@ class PerformConversionAction
 
         $newFileName = $conversion->getConversionFile($media);
 
-        $renamedFile = $this->renameInLocalDirectory($manipulationResult, $newFileName);
+        // Without manipulations the result is the original itself, which the other conversions
+        // (and the responsive images) of this media still need: copy it instead of moving it.
+        $renamedFile = $manipulationResult === $copiedOriginalFile
+            ? $this->copyInLocalDirectory($manipulationResult, $newFileName)
+            : $this->renameInLocalDirectory($manipulationResult, $newFileName);
 
         if ($conversion->shouldGenerateResponsiveImages()) {
             /** @var ResponsiveImageGenerator $responsiveImageGenerator */
@@ -55,6 +59,17 @@ class PerformConversionAction
         $media->markAsConversionGenerated($conversion->getName(), persist: false);
 
         event(new ConversionHasBeenCompletedEvent($media, $conversion));
+    }
+
+    protected function copyInLocalDirectory(
+        string $fileNameWithDirectory,
+        string $newFileNameWithoutDirectory
+    ): string {
+        $targetFile = pathinfo($fileNameWithDirectory, PATHINFO_DIRNAME).'/'.$newFileNameWithoutDirectory;
+
+        copy($fileNameWithDirectory, $targetFile);
+
+        return $targetFile;
     }
 
     protected function renameInLocalDirectory(
