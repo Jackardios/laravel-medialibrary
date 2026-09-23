@@ -234,12 +234,6 @@ class FileManipulator
             return $this;
         }
 
-        if (! function_exists('defer')) {
-            throw new RuntimeException(
-                'Deferred conversions require Laravel 11.23 or higher. Use queued() or nonQueued() instead.',
-            );
-        }
-
         defer(fn () => $this->performConversions($conversions, $media, $onlyMissing));
 
         return $this;
