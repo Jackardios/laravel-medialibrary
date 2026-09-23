@@ -298,9 +298,18 @@ class Media extends Model implements Attachable, Htmlable, Responsable
      * conversions may follow the owner's state. The returned collection is
      * shared, so callers must not mutate it or its conversions; processing paths
      * that do keep using {@see ConversionCollection::createForMedia()}.
+     *
+     * Before PHP 8.3 the cycle collector cannot free a WeakMap entry whose value
+     * references its own key (the collection holds its media), so every memoized
+     * media would live as long as the process. There the collection is simply
+     * built on every call, as it was before the memo existed.
      */
     public function getConversionCollection(): ConversionCollection
     {
+        if (PHP_VERSION_ID < 80300) {
+            return ConversionCollection::createForMedia($this);
+        }
+
         $memo = self::$conversionCollections ??= new WeakMap();
         $fingerprint = $this->getAttributes();
 

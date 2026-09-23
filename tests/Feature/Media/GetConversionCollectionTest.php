@@ -6,6 +6,12 @@ use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithConversion;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithCountedConversions;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithResponsiveImages;
 
+beforeEach(function () {
+    if (PHP_VERSION_ID < 80300) {
+        $this->markTestSkipped('The conversion collection is only memoized on PHP 8.3 and later.');
+    }
+});
+
 function conversionNames(ConversionCollection $conversions): array
 {
     return $conversions->map(fn ($conversion) => $conversion->getName())->values()->all();
