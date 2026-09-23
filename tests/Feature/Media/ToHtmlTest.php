@@ -3,9 +3,6 @@
 use Illuminate\Support\Str;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithCustomLoadingAttribute;
-use Spatie\Snapshots\MatchesSnapshots;
-
-uses(MatchesSnapshots::class);
 
 beforeEach(function () {
     $this->testModelWithConversion

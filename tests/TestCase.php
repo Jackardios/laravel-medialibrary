@@ -3,7 +3,6 @@
 namespace Spatie\MediaLibrary\Tests;
 
 use CreateTemporaryUploadsTable;
-use Dotgetenv\Dotgetenv;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -57,8 +56,6 @@ abstract class TestCase extends Orchestra
 
     protected function setUp(): void
     {
-        $this->loadEnvironmentVariables();
-
         parent::setUp();
 
         $this->setUpDatabase($this->app);
@@ -78,17 +75,6 @@ abstract class TestCase extends Orchestra
         $this->testModelWithResponsiveImages = TestModelWithResponsiveImages::first();
         $this->testModelWithConversionsOnOtherDisk = TestModelWithConversionsOnOtherDisk::first();
         $this->testModelWithConversionUsingModelInstance = TestModelWithConversionUsingModelInstance::first();
-    }
-
-    protected function loadEnvironmentVariables()
-    {
-        if (! file_exists(__DIR__.'/../.getenv')) {
-            return;
-        }
-
-        $dotEnv = Dotgetenv::createImmutable(__DIR__.'/..');
-
-        $dotEnv->load();
     }
 
     /**

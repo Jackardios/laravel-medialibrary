@@ -13,12 +13,10 @@ it('calling getRegisteredMediaCollections multiple times should return the same 
     };
 
     $result = $testModel->getRegisteredMediaCollections();
-    ray($result);
 
     expect($result)->toHaveCount(1);
 
     $result = $testModel->getRegisteredMediaCollections();
-    ray($result);
 
     expect($result)->toHaveCount(1);
 });
