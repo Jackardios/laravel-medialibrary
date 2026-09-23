@@ -311,6 +311,19 @@ it('can natively copy a remote file from the same disk to the media library', fu
     $this->assertFileDoesNotExist($this->getMediaDirectory('tmp/test.jpg'));
 });
 
+it('keeps the source file when natively copying it on the same disk fails', function () {
+    Storage::disk('public')->put('tmp/test.jpg', file_get_contents($this->getTestJpg()));
+
+    // A directory where the copy wants to write makes the local copy() fail (media id 1).
+    mkdir($this->getMediaDirectory('1/test.jpg'), 0777, true);
+
+    expect(fn () => $this->testModel->addMediaFromDisk('tmp/test.jpg', 'public')->toMediaCollection())
+        ->toThrow(DiskCannotBeAccessed::class);
+
+    expect($this->getMediaDirectory('tmp/test.jpg'))->toBeFile()
+        ->and(Media::count())->toBe(0);
+});
+
 it('can add a remote file with a space in the name to the media library', function () {
     $url = 'http://spatie.github.io/laravel-medialibrary/tests/TestSupport/testfiles/test%20with%20space.jpg';
 

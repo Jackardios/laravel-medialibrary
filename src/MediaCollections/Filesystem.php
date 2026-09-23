@@ -123,8 +123,11 @@ class Filesystem
 
     protected function copyFileOnDisk(string $file, string $destination, string $disk): void
     {
-        $this->filesystem->disk($disk)
-            ->copy($file, $destination);
+        // Without `throw` in the disk config a failed copy only returns false. The caller deletes
+        // the source afterwards (unless preservingOriginal()), so a silent failure loses the file.
+        if (! $this->filesystem->disk($disk)->copy($file, $destination)) {
+            throw DiskCannotBeAccessed::create($disk);
+        }
     }
 
     protected function streamFileToDisk($stream, string $destination, string $disk, array $headers): void
