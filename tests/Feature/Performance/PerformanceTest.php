@@ -3,6 +3,10 @@
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\LazyLoadingViolationException;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
+
+// preventLazyLoading() is a static flag the framework does not reset between tests.
+afterEach(fn () => Model::preventLazyLoading(false));
 
 it('can use eagerly loaded media', function () {
     foreach (range(1, 10) as $index) {
