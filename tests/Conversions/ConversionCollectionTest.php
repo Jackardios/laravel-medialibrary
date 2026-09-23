@@ -52,7 +52,7 @@ it('will prepend the manipulation saved on the model with the wildmark manipulat
 
     unset($manipulations['optimize']);
 
-    $this->assertEquals([
+    $this->assertSame([
         'brightness',
         'greyscale',
         'height',
@@ -60,10 +60,10 @@ it('will prepend the manipulation saved on the model with the wildmark manipulat
         'width',
     ], array_keys($manipulations));
 
-    $this->assertEquals([
+    $this->assertSame([
+        'brightness' => ['-80'],
         'greyscale' => [],
         'height' => [10],
-        'brightness' => ['-80'],
         'format' => ['jpg'],
         'width' => [50],
     ], $manipulations);
@@ -84,14 +84,14 @@ it('will prepend the manipulation saved on the model', function () {
 
     unset($manipulations['optimize']);
 
-    $this->assertEquals([
+    $this->assertSame([
         'greyscale',
         'height',
         'format',
         'width',
     ], array_keys($manipulations));
 
-    $this->assertEquals([
+    $this->assertSame([
         'greyscale' => [],
         'height' => [10],
         'format' => ['jpg'],
@@ -114,7 +114,7 @@ it('will prepend the manipulation saved on the model with non default collection
 
     unset($manipulations['optimize']);
 
-    $this->assertEquals([
+    $this->assertSame([
         'greyscale' => [],
         'height' => [10],
         'format' => ['jpg'],
