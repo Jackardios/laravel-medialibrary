@@ -482,7 +482,10 @@ it('can add manipulations with parameters of type Enum to the saved media', func
         ],
         ])
         ->toMediaCollection();
-})->throwsNoExceptions();
+
+    expect($media->fresh()->manipulations['thumb']['border']['type'])->toBe('shrink')
+        ->and($media->getPath('thumb'))->toBeFile();
+});
 
 it('can add file to model with morph map', function () {
     $media = $this->testModelWithMorphMap

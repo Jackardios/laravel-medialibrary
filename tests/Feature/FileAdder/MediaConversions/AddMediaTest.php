@@ -1,6 +1,5 @@
 <?php
 
-use Carbon\Carbon;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Spatie\MediaLibrary\Conversions\ConversionCollection;
 use Spatie\MediaLibrary\Conversions\Manipulations;
@@ -84,10 +83,12 @@ it('can create a derived version of a pdf if imagick exists', function () {
 it('will not throw an exception when converting a pdf using gd', function () {
     config()->set('media-library.image_driver', 'gd');
 
-    $this->testModelWithConversion
+    $media = $this->testModelWithConversion
         ->addMedia($this->getTestFilesDirectory('test.pdf'))
         ->toMediaCollection('images');
-})->throwsNoExceptions();
+
+    expect($media->getPath('thumb'))->toBeFile();
+});
 
 it('can create a correct derived version of a pdf', function (string $driver) {
     config()->set('media-library.image_driver', $driver);
@@ -106,26 +107,29 @@ it('can create a correct derived version of a pdf', function (string $driver) {
 it('can handle svgs correctly', function (string $driver) {
     config()->set('media-library.image_driver', $driver);
 
-    $this->testModelWithConversion
+    $media = $this->testModelWithConversion
         ->addMedia($this->getTestFilesDirectory('test.svg'))
         ->toMediaCollection('images');
-})->with(['gd', 'imagick'])->throwsNoExceptions();
+
+    expect($media->getPath('thumb'))->toBeFile();
+})->with(['gd', 'imagick']);
 
 it('will not create a derived version if manipulations did not change', function () {
-    Carbon::setTestNow();
-
     $media = $this->testModelWithConversion->addMedia($this->getTestJpg())->toMediaCollection('images');
 
-    $originalThumbCreatedAt = filemtime($this->getMediaDirectory($media->id.'/conversions/test-thumb.jpg'));
+    $thumb = $this->getMediaDirectory($media->id.'/conversions/test-thumb.jpg');
 
-    Carbon::setTestNow(Carbon::now()->addMinute());
+    // Backdate the thumb so a regeneration would be visible even within the same second.
+    touch($thumb, time() - 60);
+    clearstatcache();
+    $originalThumbCreatedAt = filemtime($thumb);
 
     $media->order_column += 1;
     $media->save();
 
-    $thumbsCreatedAt = filemtime($this->getMediaDirectory($media->id.'/conversions/test-thumb.jpg'));
+    clearstatcache();
 
-    expect($thumbsCreatedAt)->toEqual($originalThumbCreatedAt);
+    expect(filemtime($thumb))->toBe($originalThumbCreatedAt);
 });
 
 it('will have access the model instance when register media conversions using model instance has been set', function () {
