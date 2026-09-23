@@ -5,6 +5,7 @@ namespace Spatie\MediaLibrary\Conversions;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidConversion;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
@@ -27,9 +28,12 @@ class ConversionCollection extends Collection
 
     public static function createForMedia(Media $media): self
     {
-        return (new static())->setMedia($media);
+        return (new static)->setMedia($media);
     }
 
+    /**
+     * @return $this
+     */
     public function setMedia(Media $media): self
     {
         $this->media = $media;
@@ -69,8 +73,8 @@ class ConversionCollection extends Collection
             return;
         }
 
-        /** @var \Spatie\MediaLibrary\HasMedia $model */
-        $model = new $modelName();
+        /** @var HasMedia $model */
+        $model = new $modelName;
 
         // Flagged whenever the model opts in, even if this media has no owner loaded
         // right now: the same media may resolve one on a later call.
@@ -82,6 +86,7 @@ class ConversionCollection extends Collection
          * properties. This will causes extra queries.
          */
         if ($this->dependsOnModelInstance && $media->model) {
+            /** @var HasMedia $model */
             $model = $media->model;
 
             $model->mediaConversions = [];
@@ -94,11 +99,17 @@ class ConversionCollection extends Collection
 
     protected function addManipulationsFromDb(Media $media): void
     {
-        collect($media->manipulations)->each(function ($manipulation, $conversionName) {
+        collect(Arr::except($media->manipulations, '*'))->each(function ($manipulation, $conversionName) {
             $manipulations = new Manipulations($manipulation);
 
             $this->addManipulationToConversion($manipulations, $conversionName);
         });
+
+        if (array_key_exists('*', $media->manipulations)) {
+            $globalManipulations = new Manipulations($media->manipulations['*']);
+
+            $this->addManipulationToConversion($globalManipulations, '*');
+        }
     }
 
     public function getConversions(string $collectionName = ''): self

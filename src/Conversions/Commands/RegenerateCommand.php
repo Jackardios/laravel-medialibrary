@@ -26,7 +26,8 @@ class RegenerateCommand extends Command
     {--with-responsive-images : Regenerate responsive images}
     {--eager-models : Eager load the related model (avoids an N+1 for conversions registered using the model instance)}
     {--queue-connection= : Dispatch a job per media onto this queue connection (overrides media-library.queue_connection_name; point it at an async connection to offload regeneration even when the configured one is sync)}
-    {--force : Force the operation to run when in production}';
+    {--force : Force the operation to run when in production}
+    {--queue-all : Dispatch a regeneration job per media even when the resolved queue connection is sync (upstream compatibility)}';
 
     protected $description = 'Regenerate the derived images of media';
 
@@ -60,7 +61,7 @@ class RegenerateCommand extends Command
         // connection regenerates inline in this process, an async connection offloads one job
         // per media to the workers. `--queue-connection` overrides the connection for a single run.
         $connection = $this->resolveQueueConnection();
-        $shouldDispatch = $connection !== 'sync';
+        $shouldDispatch = $connection !== 'sync' || (bool) $this->option('queue-all');
 
         $query = $this->getMediaQueryToBeRegenerated();
 

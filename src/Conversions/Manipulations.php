@@ -5,7 +5,6 @@ namespace Spatie\MediaLibrary\Conversions;
 use Spatie\Image\Drivers\ImageDriver;
 use Spatie\Image\Enums\AlignPosition;
 use Spatie\Image\Enums\BorderType;
-use Spatie\Image\Enums\ColorFormat;
 use Spatie\Image\Enums\Constraint;
 use Spatie\Image\Enums\CropPosition;
 use Spatie\Image\Enums\Fit;
@@ -13,7 +12,7 @@ use Spatie\Image\Enums\FlipDirection;
 use Spatie\Image\Enums\Orientation;
 use Spatie\Image\Enums\Unit;
 
-/** @mixin \Spatie\Image\Drivers\ImageDriver */
+/** @mixin ImageDriver */
 class Manipulations
 {
     protected array $manipulations = [];
@@ -30,6 +29,9 @@ class Manipulations
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function addManipulation(string $name, array $parameters = []): self
     {
         $this->manipulations[$name] = $parameters;
@@ -61,46 +63,14 @@ class Manipulations
     public function apply(ImageDriver $image): void
     {
         foreach ($this->manipulations as $manipulationName => $parameters) {
-            if (in_array($manipulationName, ['fit', 'watermark'])) {
-                $this->convertParameterToEnumIfExists($parameters, 'fit', Fit::class);
-            }
-
-            if ($manipulationName === 'border') {
-                $this->convertParameterToEnumIfExists($parameters, 'type', BorderType::class);
-            }
-
-            if ($manipulationName === 'pickColor') {
-                $this->convertParameterToEnumIfExists($parameters, 'colorFormat', ColorFormat::class);
-            }
-
-            if ($manipulationName === 'flip') {
-                $this->convertParameterToEnumIfExists($parameters, 'flip', FlipDirection::class);
-            }
-
-            if (in_array($manipulationName, ['resize', 'width', 'height'])) {
-                $this->convertParameterToEnumIfExists($parameters, 'constraints', Constraint::class);
-            }
-
-            if ($manipulationName === 'orientation') {
-                $this->convertParameterToEnumIfExists($parameters, 'orientation', Orientation::class);
-            }
-
-            if ($manipulationName === 'watermark') {
-                $this->convertParameterToEnumIfExists($parameters, 'paddingUnit', Unit::class);
-                $this->convertParameterToEnumIfExists($parameters, 'widthUnit', Unit::class);
-                $this->convertParameterToEnumIfExists($parameters, 'heightUnit', Unit::class);
-            }
-
-            if ($manipulationName === 'crop') {
-                $this->convertParameterToEnumIfExists($parameters, 'position', CropPosition::class);
-            } elseif (in_array($manipulationName, ['watermark', 'resizeCanvas', 'insert'])) {
-                $this->convertParameterToEnumIfExists($parameters, 'position', AlignPosition::class);
-            }
-
+            $parameters = $this->transformParameters($manipulationName, $parameters);
             $image->$manipulationName(...$parameters);
         }
     }
 
+    /**
+     * @return $this
+     */
     public function mergeManipulations(self $manipulations): self
     {
         foreach ($manipulations->toArray() as $name => $parameters) {
@@ -110,6 +80,9 @@ class Manipulations
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function removeManipulation(string $name): self
     {
         unset($this->manipulations[$name]);
@@ -122,16 +95,63 @@ class Manipulations
         return $this->manipulations;
     }
 
-    /**
-     * @param array $parameters
-     * @param string $parameterName
-     * @param class-string $enum
-     * @return array
-     */
-    private function convertParameterToEnumIfExists(array &$parameters, string $parameterName, string $enum): array
+    public function transformParameters(int|string $manipulationName, mixed $parameters): mixed
     {
-        if (isset($parameters[$parameterName]) && ! ($parameters[$parameterName] instanceof $enum)) {
-            $parameters[$parameterName] = $enum::from($parameters[$parameterName]);
+        switch ($manipulationName) {
+            case 'border':
+                if (isset($parameters['type']) && ! $parameters['type'] instanceof BorderType) {
+                    $parameters['type'] = BorderType::from($parameters['type']);
+                }
+                break;
+            case 'watermark':
+                if (isset($parameters['fit']) && ! $parameters['fit'] instanceof Fit) {
+                    $parameters['fit'] = Fit::from($parameters['fit']);
+                }
+                foreach (['paddingUnit', 'widthUnit', 'heightUnit'] as $unitParameter) {
+                    if (isset($parameters[$unitParameter]) && ! $parameters[$unitParameter] instanceof Unit) {
+                        $parameters[$unitParameter] = Unit::from($parameters[$unitParameter]);
+                    }
+                }
+                // Fallthrough intended for position
+            case 'resizeCanvas':
+            case 'insert':
+                if (isset($parameters['position']) && ! $parameters['position'] instanceof AlignPosition) {
+                    $parameters['position'] = AlignPosition::from($parameters['position']);
+                }
+                break;
+            case 'resize':
+            case 'width':
+            case 'height':
+                if (isset($parameters['constraints']) && is_array($parameters['constraints'])) {
+                    foreach ($parameters['constraints'] as &$constraint) {
+                        if (! $constraint instanceof Constraint) {
+                            $constraint = Constraint::from($constraint);
+                        }
+                    }
+                }
+                break;
+            case 'crop':
+                if (isset($parameters['position']) && ! $parameters['position'] instanceof CropPosition) {
+                    $parameters['position'] = CropPosition::from($parameters['position']);
+                }
+                break;
+            case 'fit':
+                if (isset($parameters['fit']) && ! $parameters['fit'] instanceof Fit) {
+                    $parameters['fit'] = Fit::from($parameters['fit']);
+                }
+                break;
+            case 'flip':
+                if (isset($parameters['flip']) && ! $parameters['flip'] instanceof FlipDirection) {
+                    $parameters['flip'] = FlipDirection::from($parameters['flip']);
+                }
+                break;
+            case 'orientation':
+                if (isset($parameters['orientation']) && ! $parameters['orientation'] instanceof Orientation) {
+                    $parameters['orientation'] = Orientation::from($parameters['orientation']);
+                }
+                break;
+            default:
+                break;
         }
 
         return $parameters;

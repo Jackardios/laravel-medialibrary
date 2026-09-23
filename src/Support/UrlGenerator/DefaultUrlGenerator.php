@@ -9,7 +9,7 @@ class DefaultUrlGenerator extends BaseUrlGenerator
 {
     public function getUrl(): string
     {
-        $url = $this->getDisk()->url($this->getPathRelativeToRoot());
+        $url = $this->getDisk()->url($this->getUrlEncodedPathRelativeToRoot());
 
         return $this->versionUrl($url);
     }

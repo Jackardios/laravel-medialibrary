@@ -9,8 +9,10 @@ use Spatie\MediaLibrary\Conversions\ConversionCollection;
 use Spatie\MediaLibrary\Conversions\FileManipulator;
 use Spatie\MediaLibrary\MediaCollections\Events\MediaHasBeenAddedEvent;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskCannotBeAccessed;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Support\File;
+use Spatie\MediaLibrary\Support\FileNamer\FileNamer;
 use Spatie\MediaLibrary\Support\FileRemover\FileRemoverFactory;
 use Spatie\MediaLibrary\Support\PathGenerator\PathGeneratorFactory;
 use Spatie\MediaLibrary\Support\RemoteFile;
@@ -76,11 +78,17 @@ class Filesystem
 
         $storage = Storage::disk($file->getDisk());
 
+        $customHeaders = $media->getCustomHeaders();
+
+        if (in_array($type, ['conversions', 'responsiveImages'])) {
+            unset($customHeaders['ContentType']);
+        }
+
         $headers = $diskDriverName === 'local'
             ? []
             : $this->getRemoteHeadersForFile(
                 $file->getKey(),
-                $media->getCustomHeaders(),
+                $customHeaders,
                 $storage->mimeType($file->getKey())
             );
 
@@ -137,6 +145,10 @@ class Filesystem
 
         $file = fopen($pathToFile, 'r');
 
+        if ($file === false) {
+            throw FileDoesNotExist::create($pathToFile);
+        }
+
         $diskName = (in_array($type, ['conversions', 'responsiveImages']))
             ? $media->conversions_disk
             : $media->disk;
@@ -159,12 +171,18 @@ class Filesystem
             return;
         }
 
+        $customHeaders = $media->getCustomHeaders();
+
+        if (in_array($type, ['conversions', 'responsiveImages'])) {
+            unset($customHeaders['ContentType']);
+        }
+
         $success = $this->filesystem
             ->disk($diskName)
             ->put(
                 $destination,
                 $file,
-                $this->getRemoteHeadersForFile($pathToFile, $media->getCustomHeaders()),
+                $this->getRemoteHeadersForFile($pathToFile, $customHeaders),
             );
 
         if (is_resource($file)) {
@@ -200,7 +218,7 @@ class Filesystem
 
     public function getStream(Media $media)
     {
-        $sourceFile = $this->getMediaDirectory($media).'/'.$media->file_name;
+        $sourceFile = $this->getMediaDirectory($media).$media->file_name;
 
         return $this->filesystem->disk($media->disk)->readStream($sourceFile);
     }
@@ -235,6 +253,10 @@ class Filesystem
 
     public function removeResponsiveImages(Media $media, string $conversionName = 'media_library_original'): void
     {
+        /** @var FileNamer $fileNamer */
+        $fileNamer = app(config('media-library.file_namer'));
+        $mediaFilename = $fileNamer->responsiveFileName($media->name);
+
         $responsiveImagesDirectory = $this->getResponsiveImagesDirectory($media);
 
         // Responsive images are stored on the `conversions_disk` (see copyToMediaLibrary),
@@ -243,8 +265,7 @@ class Filesystem
 
         $responsiveImagePaths = array_filter(
             $allFilePaths,
-            fn (string $path) => Str::contains($path, $media->name.'___'.$conversionName)
-
+            static fn (string $path) => Str::contains($path, $mediaFilename.'___'.$conversionName)
         );
 
         $this->filesystem->disk($media->conversions_disk)->delete($responsiveImagePaths);
@@ -302,7 +323,7 @@ class Filesystem
 
     protected function renameConversionFiles(Media $media): void
     {
-        $mediaWithOldFileName = config('media-library.media_model')::find($media->id);
+        $mediaWithOldFileName = config('media-library.media_model')::find($media->getKey());
         $mediaWithOldFileName->file_name = $mediaWithOldFileName->getOriginal('file_name');
 
         $conversionDirectory = $this->getConversionDirectory($media);

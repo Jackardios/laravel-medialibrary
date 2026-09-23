@@ -1,6 +1,7 @@
 <?php
 
 use Carbon\Carbon;
+use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Spatie\MediaLibrary\Conversions\ConversionCollection;
 use Spatie\MediaLibrary\Conversions\Manipulations;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -44,7 +45,7 @@ it('can create a derived version for an image keeping the original format', func
 });
 
 it('will use the name of the conversion for naming the converted file', function () {
-    $modelClass = new class() extends TestModelWithConversion
+    $modelClass = new class extends TestModelWithConversion
     {
         public function registerMediaConversions(?Media $media = null): void
         {
@@ -128,7 +129,7 @@ it('will not create a derived version if manipulations did not change', function
 });
 
 it('will have access the model instance when register media conversions using model instance has been set', function () {
-    $modelClass = new class() extends TestModel
+    $modelClass = new class extends TestModel
     {
         public bool $registerMediaConversionsUsingModelInstance = true;
 
@@ -145,7 +146,7 @@ it('will have access the model instance when register media conversions using mo
         }
     };
 
-    $model = new $modelClass();
+    $model = new $modelClass;
     $model->name = 'testmodel';
     $model->width = 123;
     $model->save();
@@ -165,6 +166,20 @@ it('will have access the model instance when register media conversions using mo
 
     expect($conversionManipulations['width'])->toEqual([123]);
 });
+
+it('can create a deferred derived version of an image', function () {
+    $media = $this->testModelWithConversionDeferred
+        ->addMedia($this->getTestJpg())
+        ->toMediaCollection('images');
+
+    $thumbPath = $this->getMediaDirectory($media->id.'/conversions/test-thumb.jpg');
+
+    $this->assertFileDoesNotExist($thumbPath);
+
+    $this->app->make(DeferredCallbackCollection::class)->invoke();
+
+    $this->assertFileExists($thumbPath);
+})->skip(! function_exists('defer'), 'Deferred conversions require Laravel 11.23 or higher.');
 
 it('can set filesize', function () {
     $media = $this->testModelWithoutMediaConversions

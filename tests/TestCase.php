@@ -5,17 +5,22 @@ namespace Spatie\MediaLibrary\Tests;
 use CreateTemporaryUploadsTable;
 use Dotgetenv\Dotgetenv;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\File;
 use Orchestra\Testbench\TestCase as Orchestra;
+use Schema;
 use Spatie\MediaLibrary\MediaLibraryServiceProvider;
 use Spatie\MediaLibrary\Support\MediaLibraryPro;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithConversion;
+use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithConversionDeferred;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithConversionQueued;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithConversionsOnOtherDisk;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithConversionUsingModelInstance;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithMorphMap;
+use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithMorphMapInSideModel;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithMultipleConversions;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithoutMediaConversions;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithPreviewConversion;
@@ -30,15 +35,19 @@ abstract class TestCase extends Orchestra
 
     protected TestModelWithConversion $testModelWithConversion;
 
-    protected TestModelWithMultipleConversion $testModelWithMultipleConversion;
+    protected TestModelWithMultipleConversions $testModelWithMultipleConversions;
 
     protected TestModelWithPreviewConversion $testModelWithPreviewConversion;
 
     protected TestModelWithoutMediaConversions $testModelWithoutMediaConversions;
 
+    protected TestModelWithConversionDeferred $testModelWithConversionDeferred;
+
     protected TestModelWithConversionQueued $testModelWithConversionQueued;
 
     protected TestModelWithMorphMap $testModelWithMorphMap;
+
+    protected TestModelWithMorphMapInSideModel $testModelWithMorphMapInSideModel;
 
     protected TestModelWithResponsiveImages $testModelWithResponsiveImages;
 
@@ -57,13 +66,15 @@ abstract class TestCase extends Orchestra
         $this->setUpTempTestFiles();
 
         $this->testModel = TestModel::first();
-        $this->testUnsavedModel = new TestModel();
+        $this->testUnsavedModel = new TestModel;
         $this->testModelWithConversion = TestModelWithConversion::first();
         $this->testModelWithMultipleConversions = TestModelWithMultipleConversions::first();
         $this->testModelWithPreviewConversion = TestModelWithPreviewConversion::first();
+        $this->testModelWithConversionDeferred = TestModelWithConversionDeferred::first();
         $this->testModelWithConversionQueued = TestModelWithConversionQueued::first();
         $this->testModelWithoutMediaConversions = TestModelWithoutMediaConversions::first();
         $this->testModelWithMorphMap = TestModelWithMorphMap::first();
+        $this->testModelWithMorphMapInSideModel = TestModelWithMorphMapInSideModel::first();
         $this->testModelWithResponsiveImages = TestModelWithResponsiveImages::first();
         $this->testModelWithConversionsOnOtherDisk = TestModelWithConversionsOnOtherDisk::first();
         $this->testModelWithConversionUsingModelInstance = TestModelWithConversionUsingModelInstance::first();
@@ -81,7 +92,7 @@ abstract class TestCase extends Orchestra
     }
 
     /**
-     * @param  \Illuminate\Foundation\Application  $app
+     * @param  Application  $app
      * @return array
      */
     protected function getPackageProviders($app)
@@ -94,7 +105,7 @@ abstract class TestCase extends Orchestra
     }
 
     /**
-     * @param  \Illuminate\Foundation\Application  $app
+     * @param  Application  $app
      */
     public function getEnvironmentSetUp($app)
     {
@@ -130,7 +141,7 @@ abstract class TestCase extends Orchestra
     }
 
     /**
-     * @param  \Illuminate\Foundation\Application  $app
+     * @param  Application  $app
      */
     protected function setUpDatabase($app)
     {
@@ -145,12 +156,27 @@ abstract class TestCase extends Orchestra
 
         if (MediaLibraryPro::isInstalled()) {
             include_once __DIR__.'/../vendor/spatie/laravel-medialibrary-pro/database/migrations/create_temporary_uploads_table.stub';
-            (new CreateTemporaryUploadsTable())->up();
+            (new CreateTemporaryUploadsTable)->up();
         }
 
         $mediaTableMigration = require __DIR__.'/../database/migrations/create_media_table.php.stub';
 
         $mediaTableMigration->up();
+    }
+
+    protected function setUpDatabaseCustomKeyName()
+    {
+        $customKeyNameMigration = new class extends Migration
+        {
+            public function up()
+            {
+                Schema::table('media', function (Blueprint $table) {
+                    $table->renameColumn('id', 'custom_key_id');
+                });
+            }
+        };
+
+        $customKeyNameMigration->up();
     }
 
     protected function setUpTempTestFiles()
@@ -321,7 +347,7 @@ abstract class TestCase extends Orchestra
 
     protected function fileExistsInZip($zipPath, $filename): bool
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
 
         if ($zip->open($zipPath) === true) {
             return $zip->locateName($filename, ZipArchive::FL_NODIR) !== false;
@@ -332,7 +358,7 @@ abstract class TestCase extends Orchestra
 
     protected function fileExistsInZipRecognizeFolder($zipPath, $filename): bool
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
 
         if ($zip->open($zipPath) === true) {
             return $zip->locateName($filename) !== false;

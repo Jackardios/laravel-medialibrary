@@ -206,6 +206,12 @@ return [
      * need to add additional flags, possibly using curl.
      */
     'media_downloader' => Spatie\MediaLibrary\Downloaders\DefaultDownloader::class,
+    
+    /*
+     * The default lifetime in minutes for temporary urls.
+     * This is used when you call the `getLastTemporaryUrl` or `getLastTemporaryUrl` method on a media item.
+     */
+    'temporary_url_default_lifetime' => env('MEDIA_TEMPORARY_URL_DEFAULT_LIFETIME', 5),
 
     'remote' => [
         /*
@@ -289,6 +295,8 @@ By default, the media library will store its files on Laravel's `public` disk. I
             'driver' => 'local',
             'root'   => public_path('media'),
             'url'    => env('APP_URL').'/media',
+            'visibility' => 'public',
+            'throw' => false,
         ],
     ...
 ```
@@ -308,6 +316,21 @@ return [
 ```
 
 Want to use S3? Then follow Laravel's instructions on [how to add the S3 Flysystem driver](https://laravel.com/docs/filesystem#configuration). If possible, we recommend [using a remote filesystem like S3](https://twitter.com/taylorotwell/status/1153326292412129280) instead of your local filesystem to prevent security issues.
+
+If you keep your originals on a remote disk like S3 but want to store the generated conversions (thumbnails, responsive images) on a different disk — for example, locally so the application can serve them without an extra remote round-trip — you can set the `conversions_disk_name` config value:
+
+```php
+// config/media-library.php
+
+return [
+    'disk_name' => 's3',
+    'conversions_disk_name' => 'public',
+
+    // ...
+];
+```
+
+When `conversions_disk_name` is left `null` (the default), conversions are stored on the same disk as the original media. The setting is overridden by any explicit `->storingConversionsOnDisk(...)` call or by a `storeConversionsOnDisk(...)` setting on a media collection.
 
 ## Setting up a queue
 
@@ -336,6 +359,13 @@ If you don't want to install `npm` on your Ubuntu server, you can use `snap` whi
 ```bash
 sudo apt install jpegoptim optipng pngquant gifsicle libavif-bin
 sudo snap install svgo
+```
+
+Here's how to install all the optimizers on Alpine Linux:
+
+```bash
+apk add jpegoptim optipng pngquant gifsicle libavif-apps
+npm install -g svgo
 ```
 
 Here's how to install the binaries on MacOS (using [Homebrew](https://brew.sh/)):

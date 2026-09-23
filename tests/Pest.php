@@ -6,6 +6,10 @@ use Spatie\MediaLibrary\Tests\TestCase;
 
 uses(TestCase::class)->in(__DIR__);
 
+beforeEach(function () {
+    registerSpatiePestHelpers();
+});
+
 expect()->extend('toHaveExtension', function (string $expectedExtension) {
     $actualExtension = pathinfo($this->value, PATHINFO_EXTENSION);
 
@@ -24,7 +28,10 @@ function assertS3FileNotExists(string $filePath): void
 
 function canTestS3(): bool
 {
-    return ! empty(getenv('AWS_ACCESS_KEY_ID'));
+    return ! empty(getenv('AWS_ACCESS_KEY_ID'))
+        && ! empty(getenv('AWS_SECRET_ACCESS_KEY'))
+        && ! empty(getenv('AWS_DEFAULT_REGION'))
+        && ! empty(getenv('AWS_BUCKET'));
 }
 
 function getS3BaseTestDirectory(): string
@@ -41,6 +48,24 @@ function getS3BaseTestDirectory(): string
 function s3BaseUrl(): string
 {
     return 'https://laravel-medialibrary-tests.s3.eu-west-1.amazonaws.com';
+}
+
+/*
+ * Strips the parts of a presigned S3 URL that depend on the moment the URL was
+ * signed, so two URLs generated milliseconds apart can be compared for equality
+ * without the test failing when a wall-clock second ticks between them.
+ */
+function s3UrlWithoutTimingParams(string $url): string
+{
+    [$base, $query] = array_pad(explode('?', $url, 2), 2, '');
+
+    parse_str($query, $params);
+
+    foreach (['X-Amz-Date', 'X-Amz-Expires', 'X-Amz-Signature'] as $param) {
+        unset($params[$param]);
+    }
+
+    return $params === [] ? $base : $base.'?'.http_build_query($params);
 }
 
 function cleanUpS3(): void

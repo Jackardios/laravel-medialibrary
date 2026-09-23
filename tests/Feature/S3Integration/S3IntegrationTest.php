@@ -8,7 +8,7 @@ use Spatie\TemporaryDirectory\TemporaryDirectory;
 
 beforeEach(function () {
     if (! canTestS3()) {
-        $this->markTestSkipped('Skipping S3 tests because no S3 getenv variables found');
+        $this->markTestSkipped('Skipping S3 tests because AWS environment variables are not configured (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION, AWS_BUCKET)');
     }
 
     $this->s3BaseDirectory = getS3BaseTestDirectory();
@@ -17,6 +17,10 @@ beforeEach(function () {
 });
 
 afterEach(function () {
+    if (! canTestS3()) {
+        return;
+    }
+
     cleanUpS3();
 
     config()->set('media-library.path_generator', null);
@@ -138,7 +142,27 @@ it('can get the temporary url to first media in a collection', function () {
     $secondMedia = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images', 's3_disk');
     $secondMedia->save();
 
-    expect($this->testModel->getFirstTemporaryUrl(Carbon::now()->addMinutes(5), 'images'))->toEqual($firstMedia->getTemporaryUrl(Carbon::now()->addMinutes(5)));
+    expect(s3UrlWithoutTimingParams($this->testModel->getFirstTemporaryUrl(Carbon::now()->addMinutes(5), 'images')))
+        ->toEqual(s3UrlWithoutTimingParams($firstMedia->getTemporaryUrl(Carbon::now()->addMinutes(5))));
+});
+
+it('can get the temporary url to first media in a collection when no expiration passed', function () {
+    $firstMedia = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images', 's3_disk');
+    $firstMedia->save();
+
+    $secondMedia = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images', 's3_disk');
+    $secondMedia->save();
+
+    expect(s3UrlWithoutTimingParams($this->testModel->getFirstTemporaryUrl(collectionName: 'images')))
+        ->toEqual(s3UrlWithoutTimingParams($firstMedia->getTemporaryUrl(Carbon::now()->addMinutes(5))));
+});
+
+it('retrieves a temporary url for media when no expiration passed', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images', 's3_disk');
+    $media->save();
+
+    expect(s3UrlWithoutTimingParams($media->getTemporaryUrl()))
+        ->toEqual(s3UrlWithoutTimingParams($media->getTemporaryUrl(Carbon::now()->addMinutes(5))));
 });
 
 it('retrieves a temporary media conversion url from s3', function () {
@@ -234,8 +258,17 @@ it('can retrieve a zip with s3 disk', function () {
     $content = ob_get_contents();
     ob_end_clean();
 
-    $temporaryDirectory = (new TemporaryDirectory())->create();
+    $temporaryDirectory = (new TemporaryDirectory)->create();
     file_put_contents($temporaryDirectory->path('response.zip'), $content);
 
     $this->assertFileExistsInZip($temporaryDirectory->path('response.zip'), 'test.jpg');
+});
+
+it('does not double encode percent signs in filenames on S3', function () {
+    $media = $this->testModel->addMedia($this->getTestFilesDirectory('test_.jpg'))
+        ->usingFileName('IMG_5405%20copy.jpg')
+        ->toMediaCollection('default', 's3_disk');
+
+    expect($media->getUrl())->toContain('IMG_5405%2520copy.jpg');
+    expect($media->getUrl())->not->toContain('IMG_5405%252520copy.jpg');
 });

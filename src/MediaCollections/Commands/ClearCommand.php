@@ -4,7 +4,7 @@ namespace Spatie\MediaLibrary\MediaCollections\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\LazyCollection;
 use Spatie\MediaLibrary\MediaCollections\MediaRepository;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
@@ -15,7 +15,7 @@ class ClearCommand extends Command
     protected $signature = 'media-library:clear {modelType?} {collectionName?}
     {-- force : Force the operation to run when in production}';
 
-    protected $description = 'Delete all items in a media collection.';
+    protected $description = 'Delete all items in a media collection';
 
     protected MediaRepository $mediaRepository;
 
@@ -41,8 +41,8 @@ class ClearCommand extends Command
         $this->info('All done!');
     }
 
-    /** @return Collection<int, Media> */
-    public function getMediaItems(): Collection
+    /** @return LazyCollection<int, Media> */
+    public function getMediaItems(): LazyCollection
     {
         $modelType = $this->argument('modelType');
         $collectionName = $this->argument('collectionName');

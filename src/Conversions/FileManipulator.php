@@ -21,13 +21,14 @@ class FileManipulator
         Media $media,
         array $onlyConversionNames = [],
         bool $onlyMissing = false,
-        bool $withResponsiveImages = false
+        bool $withResponsiveImages = false,
+        bool $queueAll = false,
     ): void {
         if (! $this->canConvertMedia($media)) {
             return;
         }
 
-        [$queuedConversions, $conversions] = ConversionCollection::createForMedia($media)
+        $allConversions = ConversionCollection::createForMedia($media)
             ->filter(function (Conversion $conversion) use ($onlyConversionNames) {
                 if (count($onlyConversionNames) === 0) {
                     return true;
@@ -35,11 +36,27 @@ class FileManipulator
 
                 return in_array($conversion->getName(), $onlyConversionNames);
             })
-            ->filter(fn (Conversion $conversion) => $conversion->shouldBePerformedOn($media->collection_name))
-            ->partition(fn (Conversion $conversion) => $conversion->shouldBeQueued());
+            ->filter(fn (Conversion $conversion) => $conversion->shouldBePerformedOn($media->collection_name));
+
+        if ($queueAll) {
+            $this
+                ->dispatchQueuedConversions($media, $allConversions, $onlyMissing)
+                ->generateResponsiveImages($media, $withResponsiveImages);
+
+            return;
+        }
+
+        [$deferredConversions, $remaining] = $allConversions->partition(
+            fn (Conversion $conversion) => $conversion->shouldBeDeferred()
+        );
+
+        [$queuedConversions, $conversions] = $remaining->partition(
+            fn (Conversion $conversion) => $conversion->shouldBeQueued()
+        );
 
         $this
             ->performConversions($conversions, $media, $onlyMissing)
+            ->performDeferredConversions($deferredConversions, $media, $onlyMissing)
             ->dispatchQueuedConversions($media, $queuedConversions, $onlyMissing)
             ->generateResponsiveImages($media, $withResponsiveImages);
     }
@@ -195,10 +212,35 @@ class FileManipulator
                 $temporaryDirectory->path(Str::random(32).'.'.$media->extension)
             );
 
+            // Check if the file exists and has content to avoid issues with missing files
+            if (! file_exists($copiedOriginalFile) || filesize($copiedOriginalFile) === 0) {
+                return $this;
+            }
+
             $this->performConversionsOnCopiedFile($conversions, $media, $copiedOriginalFile);
         } finally {
             $temporaryDirectory->delete();
         }
+
+        return $this;
+    }
+
+    protected function performDeferredConversions(
+        ConversionCollection $conversions,
+        Media $media,
+        bool $onlyMissing = false
+    ): self {
+        if ($conversions->isEmpty()) {
+            return $this;
+        }
+
+        if (! function_exists('defer')) {
+            throw new RuntimeException(
+                'Deferred conversions require Laravel 11.23 or higher. Use queued() or nonQueued() instead.',
+            );
+        }
+
+        defer(fn () => $this->performConversions($conversions, $media, $onlyMissing));
 
         return $this;
     }
@@ -216,7 +258,7 @@ class FileManipulator
 
         try {
             foreach ($conversions as $conversion) {
-                (new PerformConversionAction())->execute($conversion, $media, $copiedOriginalFile);
+                (new PerformConversionAction)->execute($conversion, $media, $copiedOriginalFile);
 
                 $performedConversions++;
             }
@@ -258,13 +300,14 @@ class FileManipulator
      */
     protected function conversionFileExists(Media $media, string $conversionName): bool
     {
+        $conversionsDisk = $media->conversions_disk ?: $media->disk;
         $relativePath = $media->getPath($conversionName);
 
-        if ($rootPath = config("filesystems.disks.{$media->conversions_disk}.root")) {
+        if ($rootPath = config("filesystems.disks.{$conversionsDisk}.root")) {
             $relativePath = str_replace($rootPath, '', $relativePath);
         }
 
-        return Storage::disk($media->conversions_disk)->exists($relativePath);
+        return Storage::disk($conversionsDisk)->exists($relativePath);
     }
 
     protected function dispatchQueuedConversions(
@@ -286,7 +329,9 @@ class FileManipulator
             ->onConnection(config('media-library.queue_connection_name'))
             ->onQueue(config('media-library.queue_name'));
 
-        dispatch($job);
+        config('media-library.queue_conversions_after_database_commit')
+            ? dispatch($job)->afterCommit()
+            : dispatch($job);
 
         return $this;
     }
@@ -311,7 +356,9 @@ class FileManipulator
             ->onConnection(config('media-library.queue_connection_name'))
             ->onQueue(config('media-library.queue_name'));
 
-        dispatch($job);
+        config('media-library.queue_conversions_after_database_commit')
+            ? dispatch($job)->afterCommit()
+            : dispatch($job);
 
         return $this;
     }

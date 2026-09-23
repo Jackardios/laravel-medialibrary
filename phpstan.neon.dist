@@ -7,10 +7,11 @@ parameters:
         - src
         - config
         - database
+    configDirectories:
+        - config
     tmpDir: build/phpstan
     checkOctaneCompatibility: true
     checkModelProperties: true
-    checkMissingIterableValueType: true
     reportUnmatchedIgnoredErrors: false
 
     ignoreErrors:

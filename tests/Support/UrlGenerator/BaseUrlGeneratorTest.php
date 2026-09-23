@@ -14,7 +14,7 @@ beforeEach(function () {
     $this->conversionKeepingOriginalImageFormat = ConversionCollection::createForMedia($this->media)->getByName('keep_original_format');
 
     $this->urlGenerator = new DefaultUrlGenerator($this->config);
-    $this->pathGenerator = new DefaultPathGenerator();
+    $this->pathGenerator = new DefaultPathGenerator;
 
     $this->urlGenerator
         ->setMedia($this->media)
@@ -57,6 +57,15 @@ it('can get the responsive images directory url', function () {
     $this->config->set('filesystems.disks.public.url', 'http://localhost/media/');
 
     expect($this->urlGenerator->getResponsiveImagesDirectoryUrl())->toEqual('/media/1/responsive-images/');
+});
+
+it('correctly encodes percent signs in filenames when getting url', function () {
+    $media = $this->testModel->addMedia($this->getTestFilesDirectory('test_.jpg'))
+        ->usingFileName('IMG_5405%20copy.jpg')
+        ->toMediaCollection();
+
+    expect($media->getUrl())->toContain('IMG_5405%2520copy.jpg');
+    expect($media->getPath())->toContain('IMG_5405%20copy.jpg');
 });
 
 it('falls back to the originals disk for conversion urls when conversions_disk is null', function () {

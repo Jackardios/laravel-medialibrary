@@ -4,12 +4,13 @@ namespace Spatie\MediaLibrary\Conversions;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Traits\Conditionable;
+use Spatie\Image\Drivers\ImageDriver;
 use Spatie\ImageOptimizer\OptimizerChainFactory;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\ResponsiveImages\WidthCalculator\WidthCalculator;
 use Spatie\MediaLibrary\Support\FileNamer\FileNamer;
 
-/** @mixin \Spatie\Image\Drivers\ImageDriver */
+/** @mixin ImageDriver */
 class Conversion
 {
     use Conditionable;
@@ -23,6 +24,8 @@ class Conversion
     protected array $performOnCollections = [];
 
     protected bool $performOnQueue;
+
+    protected bool $performDeferred = false;
 
     protected bool $keepOriginalImageFormat = false;
 
@@ -39,7 +42,7 @@ class Conversion
     ) {
         $optimizerChain = OptimizerChainFactory::create(config('media-library.image_optimizers'));
 
-        $this->manipulations = new Manipulations();
+        $this->manipulations = new Manipulations;
         $this->manipulations->optimize($optimizerChain)->format('jpg');
 
         $this->fileNamer = app(config('media-library.file_namer'));
@@ -106,7 +109,7 @@ class Conversion
 
     public function withoutManipulations(): self
     {
-        $this->manipulations = new Manipulations();
+        $this->manipulations = new Manipulations;
 
         return $this;
     }
@@ -153,7 +156,7 @@ class Conversion
 
     public function shouldBePerformedOn(string $collectionName): bool
     {
-        //if no collections were specified, perform conversion on all collections
+        // if no collections were specified, perform conversion on all collections
         if (! count($this->performOnCollections)) {
             return true;
         }
@@ -167,6 +170,7 @@ class Conversion
 
     public function queued(): self
     {
+        $this->performDeferred = false;
         $this->performOnQueue = true;
 
         return $this;
@@ -174,6 +178,15 @@ class Conversion
 
     public function nonQueued(): self
     {
+        $this->performOnQueue = false;
+        $this->performDeferred = false;
+
+        return $this;
+    }
+
+    public function deferred(): self
+    {
+        $this->performDeferred = true;
         $this->performOnQueue = false;
 
         return $this;
@@ -186,9 +199,9 @@ class Conversion
         return $this;
     }
 
-    public function withResponsiveImages(): self
+    public function withResponsiveImages(bool $withResponsiveImages = true): self
     {
-        $this->generateResponsiveImages = true;
+        $this->generateResponsiveImages = $withResponsiveImages;
 
         return $this;
     }
@@ -213,6 +226,11 @@ class Conversion
     public function shouldBeQueued(): bool
     {
         return $this->performOnQueue;
+    }
+
+    public function shouldBeDeferred(): bool
+    {
+        return $this->performDeferred;
     }
 
     public function getResultExtension(string $originalFileExtension = ''): string

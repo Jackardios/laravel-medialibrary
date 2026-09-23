@@ -12,7 +12,9 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Spatie\MediaLibrary\Conversions\Conversion;
 use Spatie\MediaLibrary\Downloaders\DefaultDownloader;
+use Spatie\MediaLibrary\Enums\CollectionPosition;
 use Spatie\MediaLibrary\MediaCollections\Events\CollectionHasBeenClearedEvent;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileCannotBeAdded;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidBase64Data;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidUrl;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\MediaCannotBeDeleted;
@@ -27,6 +29,11 @@ use Spatie\MediaLibrary\Support\MediaLibraryPro;
 use Spatie\MediaLibraryPro\PendingMediaLibraryRequestHandler;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
+/**
+ * @template TMedia of \Spatie\MediaLibrary\MediaCollections\Models\Media = \Spatie\MediaLibrary\MediaCollections\Models\Media
+ *
+ * @phpstan-ignore trait.unused
+ */
 trait InteractsWithMedia
 {
     /** @var Conversion[] */
@@ -52,10 +59,13 @@ trait InteractsWithMedia
                 }
             }
 
-            $model->media()->cursor()->each(fn (Media $media) => $media->delete());
+            $model->deleteAllMedia();
         });
     }
 
+    /**
+     * @return MorphMany<TMedia, $this>
+     */
     public function media(): MorphMany
     {
         return $this->morphMany($this->getMediaModel(), 'model');
@@ -63,12 +73,17 @@ trait InteractsWithMedia
 
     /**
      * Add a file to the media library.
+     *
+     * @return FileAdder<TMedia>
      */
     public function addMedia(string|UploadedFile $file): FileAdder
     {
         return app(FileAdderFactory::class)->create($this, $file);
     }
 
+    /**
+     * @return FileAdder<TMedia>
+     */
     public function addMediaFromRequest(string $key): FileAdder
     {
         return app(FileAdderFactory::class)->createFromRequest($this, $key);
@@ -76,6 +91,8 @@ trait InteractsWithMedia
 
     /**
      * Add a file from the given disk.
+     *
+     * @return FileAdder<TMedia>
      */
     public function addMediaFromDisk(string $key, ?string $disk = null): FileAdder
     {
@@ -108,7 +125,7 @@ trait InteractsWithMedia
      * Add multiple files from a request by keys.
      *
      * @param  string[]  $keys
-     * @return \Spatie\MediaLibrary\MediaCollections\FileAdder[]
+     * @return Collection<int, FileAdder<TMedia>>
      */
     public function addMultipleMediaFromRequest(array $keys): Collection
     {
@@ -118,7 +135,7 @@ trait InteractsWithMedia
     /**
      * Add all files from a request.
      *
-     * @return \Spatie\MediaLibrary\MediaCollections\FileAdder[]
+     * @return Collection<int, FileAdder<TMedia>>
      */
     public function addAllMediaFromRequest(): Collection
     {
@@ -128,9 +145,9 @@ trait InteractsWithMedia
     /**
      * Add a remote file to the media library.
      *
+     * @return FileAdder<TMedia>
      *
-     *
-     * @throws \Spatie\MediaLibrary\MediaCollections\Exceptions\FileCannotBeAdded
+     * @throws FileCannotBeAdded
      */
     public function addMediaFromUrl(string $url, array|string ...$allowedMimeTypes): FileAdder
     {
@@ -139,11 +156,10 @@ trait InteractsWithMedia
         }
 
         $downloader = config('media-library.media_downloader', DefaultDownloader::class);
-        $temporaryFile = (new $downloader())->getTempFile($url);
+        $temporaryFile = (new $downloader)->getTempFile($url);
         $this->guardAgainstInvalidMimeType($temporaryFile, $allowedMimeTypes);
 
-        $filename = basename(parse_url($url, PHP_URL_PATH));
-        $filename = urldecode($filename);
+        $filename = basename(urldecode((string) parse_url($url, PHP_URL_PATH)));
 
         if ($filename === '') {
             $filename = 'file';
@@ -164,6 +180,7 @@ trait InteractsWithMedia
      * Add a file to the media library that contains the given string.
      *
      * @param string string
+     * @return FileAdder<TMedia>
      */
     public function addMediaFromString(string $text): FileAdder
     {
@@ -181,7 +198,9 @@ trait InteractsWithMedia
     /**
      * Add a base64 encoded file to the media library.
      *
-     * @throws \Spatie\MediaLibrary\MediaCollections\Exceptions\FileCannotBeAdded
+     * @return FileAdder<TMedia>
+     *
+     * @throws FileCannotBeAdded
      * @throws InvalidBase64Data
      */
     public function addMediaFromBase64(string $base64data, array|string ...$allowedMimeTypes): FileAdder
@@ -217,6 +236,8 @@ trait InteractsWithMedia
 
     /**
      * Add a file to the media library from a stream.
+     *
+     * @return FileAdder<TMedia>
      */
     public function addMediaFromStream($stream): FileAdder
     {
@@ -233,6 +254,8 @@ trait InteractsWithMedia
 
     /**
      * Copy a file to the media library.
+     *
+     * @return FileAdder<TMedia>
      */
     public function copyMedia(string|UploadedFile $file): FileAdder
     {
@@ -242,13 +265,15 @@ trait InteractsWithMedia
     /*
      * Determine if there is media in the given collection.
      */
-    public function hasMedia(string $collectionName = 'default', array $filters = []): bool
+    public function hasMedia(string $collectionName = 'default', array|callable $filters = []): bool
     {
         return count($this->getMedia($collectionName, $filters)) ? true : false;
     }
 
     /**
      * Get media collection by its collectionName.
+     *
+     * @return MediaCollections\Models\Collections\MediaCollection<int, TMedia>
      */
     public function getMedia(string $collectionName = 'default', array|callable $filters = []): MediaCollections\Models\Collections\MediaCollection
     {
@@ -267,21 +292,36 @@ trait InteractsWithMedia
         return config('media-library.media_model');
     }
 
+    /**
+     * @return TMedia|null
+     */
     public function getFirstMedia(string $collectionName = 'default', $filters = []): ?Media
+    {
+        return $this->getMediaItem($collectionName, $filters, CollectionPosition::First);
+    }
+
+    /**
+     * @return TMedia|null
+     */
+    public function getLastMedia(string $collectionName = 'default', $filters = []): ?Media
+    {
+        return $this->getMediaItem($collectionName, $filters, CollectionPosition::Last);
+    }
+
+    protected function getMediaItem(string $collectionName, $filters, CollectionPosition $position)
     {
         $media = $this->getMedia($collectionName, $filters);
 
-        return $media->first();
+        return $position === CollectionPosition::First
+            ? $media->first()
+            : $media->last();
     }
 
-    /*
-     * Get the url of the image for the given conversionName
-     * for first media for the given collectionName.
-     * If no profile is given, return the source's url.
-     */
-    public function getFirstMediaUrl(string $collectionName = 'default', string $conversionName = ''): string
+    private function getMediaItemUrl(string $collectionName, string $conversionName, CollectionPosition $position): string
     {
-        $media = $this->getFirstMedia($collectionName);
+        $media = $position === CollectionPosition::First
+            ? $this->getFirstMedia($collectionName)
+            : $this->getLastMedia($collectionName);
 
         if (! $media) {
             return $this->getFallbackMediaUrl($collectionName, $conversionName) ?: '';
@@ -297,15 +337,32 @@ trait InteractsWithMedia
     /*
      * Get the url of the image for the given conversionName
      * for first media for the given collectionName.
-     *
      * If no profile is given, return the source's url.
      */
-    public function getFirstTemporaryUrl(
+    public function getFirstMediaUrl(string $collectionName = 'default', string $conversionName = ''): string
+    {
+        return $this->getMediaItemUrl($collectionName, $conversionName, CollectionPosition::First);
+    }
+
+    /*
+     * Get the url of the image for the given conversionName
+     * for last media for the given collectionName.
+     * If no profile is given, return the source's url.
+     */
+    public function getLastMediaUrl(string $collectionName = 'default', string $conversionName = ''): string
+    {
+        return $this->getMediaItemUrl($collectionName, $conversionName, CollectionPosition::Last);
+    }
+
+    private function getMediaItemTemporaryUrl(
         DateTimeInterface $expiration,
-        string $collectionName = 'default',
-        string $conversionName = ''
+        string $collectionName,
+        string $conversionName,
+        CollectionPosition $position
     ): string {
-        $media = $this->getFirstMedia($collectionName);
+        $media = $position === CollectionPosition::First
+            ? $this->getFirstMedia($collectionName)
+            : $this->getLastMedia($collectionName);
 
         if (! $media) {
             return $this->getFallbackMediaUrl($collectionName, $conversionName) ?: '';
@@ -316,6 +373,38 @@ trait InteractsWithMedia
         }
 
         return $media->getTemporaryUrl($expiration, $conversionName);
+    }
+
+    /*
+     * Get the url of the image for the given conversionName
+     * for first media for the given collectionName.
+     *
+     * If no profile is given, return the source's url.
+     */
+    public function getFirstTemporaryUrl(
+        ?DateTimeInterface $expiration = null,
+        string $collectionName = 'default',
+        string $conversionName = ''
+    ): string {
+        $expiration = $expiration ?: now()->addMinutes(config('media-library.temporary_url_default_lifetime'));
+
+        return $this->getMediaItemTemporaryUrl($expiration, $collectionName, $conversionName, CollectionPosition::First);
+    }
+
+    /*
+     * Get the url of the image for the given conversionName
+     * for last media for the given collectionName.
+     *
+     * If no profile is given, return the source's url.
+     */
+    public function getLastTemporaryUrl(
+        ?DateTimeInterface $expiration = null,
+        string $collectionName = 'default',
+        string $conversionName = ''
+    ): string {
+        $expiration = $expiration ?: now()->addMinutes(config('media-library.temporary_url_default_lifetime'));
+
+        return $this->getMediaItemTemporaryUrl($expiration, $collectionName, $conversionName, CollectionPosition::Last);
     }
 
     public function getRegisteredMediaCollections(): Collection
@@ -355,14 +444,11 @@ trait InteractsWithMedia
         return $fallbackPaths[$conversionName] ?? $fallbackPaths['default'] ?? '';
     }
 
-    /*
-     * Get the url of the image for the given conversionName
-     * for first media for the given collectionName.
-     * If no profile is given, return the source's url.
-     */
-    public function getFirstMediaPath(string $collectionName = 'default', string $conversionName = ''): string
+    private function getMediaItemPath(string $collectionName, string $conversionName, CollectionPosition $position): string
     {
-        $media = $this->getFirstMedia($collectionName);
+        $media = $position === CollectionPosition::First
+            ? $this->getFirstMedia($collectionName)
+            : $this->getLastMedia($collectionName);
 
         if (! $media) {
             return $this->getFallbackMediaPath($collectionName, $conversionName) ?: '';
@@ -376,6 +462,21 @@ trait InteractsWithMedia
     }
 
     /*
+     * Get the url of the image for the given conversionName
+     * for first media for the given collectionName.
+     * If no profile is given, return the source's url.
+     */
+    public function getFirstMediaPath(string $collectionName = 'default', string $conversionName = ''): string
+    {
+        return $this->getMediaItemPath($collectionName, $conversionName, CollectionPosition::First);
+    }
+
+    public function getLastMediaPath(string $collectionName = 'default', string $conversionName = ''): string
+    {
+        return $this->getMediaItemPath($collectionName, $conversionName, CollectionPosition::Last);
+    }
+
+    /*
      * Update a media collection by deleting and inserting again with new values.
      */
     public function updateMedia(array $newMediaArray, string $collectionName = 'default'): Collection
@@ -383,7 +484,7 @@ trait InteractsWithMedia
         $this->removeMediaItemsNotPresentInArray($newMediaArray, $collectionName);
 
         $mediaClass = $this->getMediaModel();
-        $mediaInstance = new $mediaClass();
+        $mediaInstance = new $mediaClass;
         $keyName = $mediaInstance->getKeyName();
 
         return collect($newMediaArray)
@@ -427,6 +528,9 @@ trait InteractsWithMedia
         }
     }
 
+    /**
+     * @return $this
+     */
     public function clearMediaCollection(string $collectionName = 'default'): HasMedia
     {
         $this
@@ -442,6 +546,9 @@ trait InteractsWithMedia
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function clearMediaCollectionExcept(
         string $collectionName = 'default',
         array|Collection|Media $excludedMedia = []
@@ -476,7 +583,7 @@ trait InteractsWithMedia
      * Delete the associated media with the given id.
      * You may also pass a media object.
      *
-     * @throws \Spatie\MediaLibrary\MediaCollections\Exceptions\MediaCannotBeDeleted
+     * @throws MediaCannotBeDeleted
      */
     public function deleteMedia(int|string|Media $mediaId): void
     {
@@ -576,6 +683,16 @@ trait InteractsWithMedia
         if ($validation->fails()) {
             throw MimeTypeNotAllowed::create($file, $allowedMimeTypes);
         }
+    }
+
+    public function deleteAllMedia(): self
+    {
+        $this
+            ->media()
+            ->cursor()
+            ->each(fn (Media $media) => $media->delete());
+
+        return $this;
     }
 
     public function registerMediaConversions(?Media $media = null): void {}

@@ -15,12 +15,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Mail\Attachment;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\MediaLibrary\Conversions\Conversion;
 use Spatie\MediaLibrary\Conversions\ConversionCollection;
 use Spatie\MediaLibrary\Conversions\ImageGenerators\ImageGeneratorFactory;
 use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidConversion;
 use Spatie\MediaLibrary\MediaCollections\FileAdder;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
 use Spatie\MediaLibrary\MediaCollections\HtmlableMedia;
@@ -50,7 +53,7 @@ use WeakMap;
  * @property string $conversions_disk
  * @property string $type
  * @property string $extension
- * @property-read string $humanReadableSize
+ * @property-read string $human_readable_size
  * @property-read string $preview_url
  * @property-read string $original_url
  * @property int $size
@@ -59,8 +62,8 @@ use WeakMap;
  * @property array $custom_properties
  * @property array $generated_conversions
  * @property array $responsive_images
- * @property-read ?\Illuminate\Support\Carbon $created_at
- * @property-read ?\Illuminate\Support\Carbon $updated_at
+ * @property-read ?Carbon $created_at
+ * @property-read ?Carbon $updated_at
  */
 class Media extends Model implements Attachable, Htmlable, Responsable
 {
@@ -97,9 +100,10 @@ class Media extends Model implements Attachable, Htmlable, Responsable
      */
     private static ?WeakMap $conversionCollections = null;
 
+    /** @phpstan-ignore method.childReturnType */
     public function newCollection(array $models = []): MediaCollection
     {
-        return new MediaCollection($models);
+        return new MediaCollection($models); // @phpstan-ignore argument.type
     }
 
     public function model(): MorphTo
@@ -119,8 +123,9 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         return $urlGenerator->getUrl();
     }
 
-    public function getTemporaryUrl(DateTimeInterface $expiration, string $conversionName = '', array $options = []): string
+    public function getTemporaryUrl(?DateTimeInterface $expiration = null, string $conversionName = '', array $options = []): string
     {
+        $expiration = $expiration ?: now()->addMinutes(config('media-library.temporary_url_default_lifetime'));
         $urlGenerator = $this->getUrlGenerator($conversionName);
 
         return $urlGenerator->getTemporaryUrl($expiration, $options);
@@ -156,6 +161,19 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         return $this->getUrl();
     }
 
+    public function getAvailableTemporaryUrl(array $conversionNames, ?DateTimeInterface $expiration = null, array $options = []): string
+    {
+        foreach ($conversionNames as $conversionName) {
+            if (! $this->hasGeneratedConversion($conversionName)) {
+                continue;
+            }
+
+            return $this->getTemporaryUrl($expiration, $conversionName, $options);
+        }
+
+        return $this->getTemporaryUrl($expiration, '', $options);
+    }
+
     public function getDownloadFilename(): string
     {
         return $this->file_name;
@@ -185,6 +203,19 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         }
 
         return $this->getPath();
+    }
+
+    public function getAvailablePathRelativeToRoot(array $conversionNames): string
+    {
+        foreach ($conversionNames as $conversionName) {
+            if (! $this->hasGeneratedConversion($conversionName)) {
+                continue;
+            }
+
+            return $this->getPathRelativeToRoot($conversionName);
+        }
+
+        return $this->getPathRelativeToRoot();
     }
 
     protected function type(): Attribute
@@ -272,6 +303,9 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function forgetCustomProperty(string $name): self
     {
         $customProperties = $this->custom_properties;
@@ -344,6 +378,9 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         return collect($this->generated_conversions ?? []);
     }
 
+    /**
+     * @return $this
+     */
     public function markAsConversionGenerated(string $conversionName, bool $persist = true): self
     {
         $generatedConversions = $this->generated_conversions;
@@ -362,6 +399,9 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function markAsConversionNotGenerated(string $conversionName): self
     {
         $generatedConversions = $this->generated_conversions;
@@ -382,6 +422,9 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         return Arr::get($generatedConversions, $conversionName, false);
     }
 
+    /**
+     * @return $this
+     */
     public function setStreamChunkSize(int $chunkSize): self
     {
         $this->streamChunkSize = $chunkSize;
@@ -389,30 +432,55 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         return $this;
     }
 
-    public function toResponse($request): StreamedResponse
+    public function toResponse($request, string $conversion = ''): StreamedResponse
     {
-        return $this->buildResponse($request, 'attachment');
+        return $this->buildResponse($request, 'attachment', $conversion);
     }
 
-    public function toInlineResponse($request): StreamedResponse
+    public function toInlineResponse($request, string $conversion = ''): StreamedResponse
     {
-        return $this->buildResponse($request, 'inline');
+        return $this->buildResponse($request, 'inline', $conversion);
     }
 
-    private function buildResponse($request, string $contentDispositionType): StreamedResponse
+    public function toAvailableResponse($request, array $conversionNames): StreamedResponse
+    {
+        return $this->toResponse($request, $this->findFirstAvailableConversion($conversionNames));
+    }
+
+    public function toAvailableInlineResponse($request, array $conversionNames): StreamedResponse
+    {
+        return $this->toInlineResponse($request, $this->findFirstAvailableConversion($conversionNames));
+    }
+
+    private function findFirstAvailableConversion(array $conversionNames): string
+    {
+        foreach ($conversionNames as $conversionName) {
+            if ($this->hasGeneratedConversion($conversionName)) {
+                return $conversionName;
+            }
+        }
+
+        return '';
+    }
+
+    private function buildResponse($request, string $contentDispositionType, string $conversion = ''): StreamedResponse
     {
         $filename = str_replace('"', '\'', Str::ascii($this->getDownloadFilename()));
+
+        $size = $conversion !== ''
+            ? Storage::disk($this->conversions_disk)->size($this->getPathRelativeToRoot($conversion))
+            : $this->size;
 
         $downloadHeaders = [
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
             'Content-Type' => $this->mime_type,
-            'Content-Length' => $this->size,
+            'Content-Length' => $size,
             'Content-Disposition' => $contentDispositionType.'; filename="'.$filename.'"',
             'Pragma' => 'public',
         ];
 
-        return response()->stream(function () {
-            $stream = $this->stream();
+        return response()->stream(function () use ($conversion) {
+            $stream = $this->stream($conversion);
 
             while (! feof($stream)) {
                 echo fread($stream, $this->streamChunkSize);
@@ -508,12 +576,20 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         return new RegisteredResponsiveImages($this, $conversionName);
     }
 
-    public function stream()
+    public function stream(string $conversion = '')
     {
         /** @var Filesystem $filesystem */
         $filesystem = app(Filesystem::class);
 
-        return $filesystem->getStream($this);
+        if ($conversion === '') {
+            return $filesystem->getStream($this);
+        }
+
+        if (! $this->hasGeneratedConversion($conversion)) {
+            throw InvalidConversion::unknownName($conversion);
+        }
+
+        return $filesystem->getConversionStream($this, $conversion);
     }
 
     public function toHtml(): string
@@ -537,18 +613,24 @@ class Media extends Model implements Attachable, Htmlable, Responsable
     {
         MediaLibraryPro::ensureInstalled();
 
-        return $this->belongsTo(TemporaryUpload::class);
+        /** @var class-string<TemporaryUpload> $temporaryUploadModelClass */
+        $temporaryUploadModelClass = config('media-library.temporary_upload_model');
+
+        return $this->belongsTo($temporaryUploadModelClass);
     }
 
     public static function findWithTemporaryUploadInCurrentSession(array $uuids): EloquentCollection
     {
         MediaLibraryPro::ensureInstalled();
 
+        /** @var class-string<TemporaryUpload> $temporaryUploadModelClass */
+        $temporaryUploadModelClass = config('media-library.temporary_upload_model');
+
         return static::query()
             ->whereIn('uuid', $uuids)
             ->whereHasMorph(
                 'model',
-                [TemporaryUpload::class],
+                [$temporaryUploadModelClass],
                 fn (Builder $builder) => $builder->where('session_id', session()->getId())
             )
             ->get();

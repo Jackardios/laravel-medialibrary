@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Queue;
 use Spatie\MediaLibrary\Conversions\Conversion;
 use Spatie\MediaLibrary\Conversions\ConversionCollection;
 use Spatie\MediaLibrary\Conversions\FileManipulator;
+use Spatie\MediaLibrary\Conversions\Jobs\PerformConversionsJob;
 use Spatie\MediaLibrary\Conversions\Jobs\RegenerateMediaJob;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\ResponsiveImages\ResponsiveImageGenerator;
@@ -14,13 +15,14 @@ it('can regenerate all files', function () {
     $media = $this->testModelWithConversion->addMedia($this->getTestFilesDirectory('test.jpg'))->toMediaCollection('images');
 
     $derivedImage = $this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg");
+    // Backdate the existing conversion so the regenerated file is guaranteed a
+    // newer mtime, without waiting out filemtime()'s one-second granularity.
+    touch($derivedImage, time() - 5);
     $createdAt = filemtime($derivedImage);
 
     unlink($derivedImage);
 
     $this->assertFileDoesNotExist($derivedImage);
-
-    sleep(1);
 
     $this->artisan('media-library:regenerate');
 
@@ -45,13 +47,14 @@ it('can regenerate only missing files', function () {
 
     $existsCreatedAt = filemtime($derivedImageExists);
 
+    // Backdate the existing conversion so the regenerated file is guaranteed a
+    // newer mtime, without waiting out filemtime()'s one-second granularity.
+    touch($derivedMissingImage, time() - 5);
     $missingCreatedAt = filemtime($derivedMissingImage);
 
     unlink($derivedMissingImage);
 
     $this->assertFileDoesNotExist($derivedMissingImage);
-
-    sleep(1);
 
     // The DB still marks `thumb` as generated (only the file was removed), so `--verify-existence`
     // is required to detect the on-disk gap and regenerate it.
@@ -84,13 +87,14 @@ it('can regenerate missing files queued', function () {
 
     $existsCreatedAt = filemtime($derivedImageExists);
 
+    // Backdate the existing conversion so the regenerated file is guaranteed a
+    // newer mtime, without waiting out filemtime()'s one-second granularity.
+    touch($derivedMissingImage, time() - 5);
     $missingCreatedAt = filemtime($derivedMissingImage);
 
     unlink($derivedMissingImage);
 
     $this->assertFileDoesNotExist($derivedMissingImage);
-
-    sleep(1);
 
     $this->artisan('media-library:regenerate', [
         '--only-missing' => true,
@@ -143,6 +147,9 @@ it('can regenerate only missing files of named conversions', function () {
     $derivedMissingImageOriginal = $this->getMediaDirectory("{$mediaMissing->id}/conversions/test-keep_original_format.png");
 
     $existsCreatedAt = filemtime($derivedImageExists);
+    // Backdate the existing conversion so the regenerated file is guaranteed a
+    // newer mtime, without waiting out filemtime()'s one-second granularity.
+    touch($derivedMissingImage, time() - 5);
     $missingCreatedAt = filemtime($derivedMissingImage);
 
     unlink($derivedMissingImage);
@@ -150,8 +157,6 @@ it('can regenerate only missing files of named conversions', function () {
 
     $this->assertFileDoesNotExist($derivedMissingImage);
     $this->assertFileDoesNotExist($derivedMissingImageOriginal);
-
-    sleep(1);
 
     $this->artisan('media-library:regenerate', [
         '--only-missing' => true,
@@ -376,6 +381,23 @@ it('can set updated_at column when regenerating', function () {
     $media->refresh();
 
     expect($media->updated_at)->toBeGreaterThanOrEqual(now()->subSeconds(5));
+});
+
+it('can force queue non-queued conversions', function () {
+    Queue::fake();
+
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    unlink($thumbConversion = $this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg"));
+
+    $this->artisan('media-library:regenerate', ['--queue-all' => true]);
+
+    $this->assertFileDoesNotExist($this->getMediaDirectory($thumbConversion));
+
+    // Fork semantics: --queue-all dispatches one RegenerateMediaJob per media (the whole media is the unit of work).
+    Queue::assertPushed(RegenerateMediaJob::class);
 });
 
 it('skips existing conversions stored on a separate disk when regenerating only missing', function () {

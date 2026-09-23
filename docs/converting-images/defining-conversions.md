@@ -13,7 +13,7 @@ Please check [the image generator docs](/docs/laravel-medialibrary/v11/convertin
 
 ## Are you a visual learner?
 
-Here's a video that shows how to working with conversion.
+Here's a video that shows how to work with conversions.
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/1i-HTyyEmvM" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
@@ -52,10 +52,10 @@ $media = YourModel::first()->addMedia($pathToImage)->toMediaCollection();
 Besides storing the original item, the media library also has created a derived image.
 
 ```php
-$media->getPath();  // the path to the where the original image is stored
+$media->getPath();  // the path to where the original image is stored
 $media->getPath('thumb'); // the path to the converted image with dimensions 368x232
 
-$media->getUrl();  // the url to the where the original image is stored
+$media->getUrl();  // the url to where the original image is stored
 $media->getUrl('thumb'); // the url to the converted image with dimensions 368x232
 ```
 
@@ -121,6 +121,19 @@ $media = $yourModel->addMedia($pathToImage)->toMediaCollection('other collection
 $media->getUrl('thumb') // returns ''
 ```
 
+## Using a specific disk
+You can ensure that conversions added to a collection are automatically added to a certain disk.
+
+```php
+public function registerMediaCollections(): void
+{
+    $this
+        ->addMediaCollection('big-files')
+        ->useDisk('s3')
+        ->storeConversionsOnDisk('public');
+}
+```
+
 ## Queuing conversions
 
 By default, a conversion will be added to the connection and queue that you've [specified in the configuration](/docs/laravel-medialibrary/v11/installation-setup). If you want your image to be created directly (and not on a queue) use `nonQueued` on a conversion.
@@ -148,6 +161,32 @@ public function registerMediaConversions(?Media $media = null): void
             ->queued();
 }
 ```
+
+The default behaviour is that queued conversions will run **after all database transactions have been committed**. \
+This prevents unexpected behaviour where the model does not yet exist in the database and the conversion is disregarded.
+If you need the conversions to run within your transaction, you can set the `queue_conversions_after_database_commit`
+in the `media-library` config file to `false`.
+
+## Deferred conversions
+
+Instead of processing a conversion synchronously or dispatching it to a queue, you can use `deferred()` to schedule the conversion to run after the HTTP response has been sent to the browser. This uses Laravel's [`defer()` helper](https://laravel.com/docs/13.x/helpers#deferred-functions) under the hood.
+
+Deferred conversions are useful when you need a conversion to happen promptly after upload without blocking the upload request itself. A common case is generating an avatar thumbnail that should be available quickly, but doesn't need to delay the response.
+
+```php
+// in your model
+public function registerMediaConversions(?Media $media = null): void
+{
+    $this->addMediaConversion('thumb')
+            ->width(368)
+            ->height(232)
+            ->deferred();
+}
+```
+
+Deferred conversions run inline in the same PHP process after the response is flushed, so they keep the worker busy until they finish. For slow conversions, or models with many conversions, prefer `queued()` so the work runs on a queue worker instead.
+
+Deferred conversions require Laravel 11.23 or higher (the version that introduced the `defer()` helper). On older versions, use `queued()` or `nonQueued()`.
 
 ## Using model properties in a conversion
 

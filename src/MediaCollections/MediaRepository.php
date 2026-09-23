@@ -4,9 +4,9 @@ namespace Spatie\MediaLibrary\MediaCollections;
 
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection as DbCollection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\LazyCollection;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
@@ -41,24 +41,38 @@ class MediaRepository
         return $media->filter($filter);
     }
 
-    public function all(): DbCollection
+    public function all(): LazyCollection
     {
-        return $this->queryAll()->get();
+        return $this->query()->cursor();
     }
 
-    public function getByModelType(string $modelType): DbCollection
+    public function allIds(): Collection
     {
-        return $this->queryByModelType($modelType)->get();
+        return $this->query()->pluck($this->model->getKeyName());
     }
 
-    public function getByIds(array $ids): DbCollection
+    public function allDiskNames(): Collection
     {
-        return $this->queryByIds($ids)->get();
+        return $this->query()->distinct()->pluck('disk')
+            ->merge($this->query()->distinct()->pluck('conversions_disk'))
+            ->filter()
+            ->unique()
+            ->values();
     }
 
-    public function getByIdGreaterThan(int $startingFromId, bool $excludeStartingId = false, string $modelType = ''): DbCollection
+    public function getByModelType(string $modelType): LazyCollection
     {
-        return $this->queryByIdGreaterThan($startingFromId, $excludeStartingId, $modelType)->get();
+        return $this->queryByModelType($modelType)->cursor();
+    }
+
+    public function getByIds(array $ids): LazyCollection
+    {
+        return $this->queryByIds($ids)->cursor();
+    }
+
+    public function getByIdGreaterThan(int $startingFromId, bool $excludeStartingId = false, string $modelType = ''): LazyCollection
+    {
+        return $this->queryByIdGreaterThan($startingFromId, $excludeStartingId, $modelType)->cursor();
     }
 
     /** @return Builder<Media> */
@@ -87,32 +101,32 @@ class MediaRepository
             ->when($modelType !== '', fn (Builder $q) => $q->where('model_type', $modelType));
     }
 
-    public function getByModelTypeAndCollectionName(string $modelType, string $collectionName): DbCollection
+    public function getByModelTypeAndCollectionName(string $modelType, string $collectionName): LazyCollection
     {
         return $this->query()
             ->where('model_type', $modelType)
             ->where('collection_name', $collectionName)
-            ->get();
+            ->cursor();
     }
 
-    public function getByCollectionName(string $collectionName): DbCollection
+    public function getByCollectionName(string $collectionName): LazyCollection
     {
         return $this->query()
             ->where('collection_name', $collectionName)
-            ->get();
+            ->cursor();
     }
 
-    public function getOrphans(): DbCollection
+    public function getOrphans(): LazyCollection
     {
         return $this->orphansQuery()
-            ->get();
+            ->cursor();
     }
 
-    public function getOrphansByCollectionName(string $collectionName): DbCollection
+    public function getOrphansByCollectionName(string $collectionName): LazyCollection
     {
         return $this->orphansQuery()
             ->where('collection_name', $collectionName)
-            ->get();
+            ->cursor();
     }
 
     /** @return Builder<Media> */
@@ -123,11 +137,10 @@ class MediaRepository
 
     protected function orphansQuery(): Builder
     {
-        return $this->query()
-            ->whereDoesntHave(
-                'model',
-                fn (Builder $q) => $q->hasMacro('withTrashed') ? $q->withTrashed() : $q,
-            );
+        return $this->query()->where(fn (Builder $query) => $query->whereDoesntHave(
+            'model',
+            fn (Builder $q) => $q->hasMacro('withTrashed') ? $q->withTrashed() : $q, // @phpstan-ignore method.notFound
+        ));
     }
 
     protected function getDefaultFilterFunction(array $filters): Closure

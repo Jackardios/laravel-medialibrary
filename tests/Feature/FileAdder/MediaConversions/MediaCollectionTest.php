@@ -7,7 +7,7 @@ use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithConversion;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithoutMediaConversions;
 
 it('will use the disk from a media collection', function () {
-    $testModel = new class() extends TestModelWithConversion
+    $testModel = new class extends TestModelWithConversion
     {
         public function registerMediaCollections(): void
         {
@@ -30,7 +30,7 @@ it('will use the disk from a media collection', function () {
 });
 
 it('will not use the disk name of the collection if a diskname is specified while adding', function () {
-    $testModel = new class() extends TestModelWithConversion
+    $testModel = new class extends TestModelWithConversion
     {
         public function registerMediaCollections(): void
         {
@@ -49,7 +49,7 @@ it('will not use the disk name of the collection if a diskname is specified whil
 });
 
 it('can register media conversions when defining media collections', function () {
-    $testModel = new class() extends TestModelWithoutMediaConversions
+    $testModel = new class extends TestModelWithoutMediaConversions
     {
         public function registerMediaCollections(): void
         {
@@ -71,7 +71,7 @@ it('can register media conversions when defining media collections', function ()
 });
 
 it('will not use media conversions from an unrelated collection', function () {
-    $testModel = new class() extends TestModelWithoutMediaConversions
+    $testModel = new class extends TestModelWithoutMediaConversions
     {
         public function registerMediaCollections(): void
         {
@@ -93,7 +93,7 @@ it('will not use media conversions from an unrelated collection', function () {
 });
 
 it('will use conversions defined in conversions and conversions defined in collections', function () {
-    $testModel = new class() extends TestModelWithoutMediaConversions
+    $testModel = new class extends TestModelWithoutMediaConversions
     {
         public function registerMediaConversions(?Media $media = null): void
         {
@@ -124,7 +124,7 @@ it('will use conversions defined in conversions and conversions defined in colle
 });
 
 it('can accept certain files', function () {
-    $testModel = new class() extends TestModelWithConversion
+    $testModel = new class extends TestModelWithConversion
     {
         public function registerMediaCollections(): void
         {
@@ -144,7 +144,7 @@ it('can accept certain files', function () {
 });
 
 it('can guard against invalid mimetypes', function () {
-    $testModel = new class() extends TestModelWithConversion
+    $testModel = new class extends TestModelWithConversion
     {
         public function registerMediaCollections(): void
         {
@@ -164,7 +164,7 @@ it('can guard against invalid mimetypes', function () {
 });
 
 it('can generate responsive images', function () {
-    $testModel = new class() extends TestModelWithConversion
+    $testModel = new class extends TestModelWithConversion
     {
         public function registerMediaCollections(): void
         {
@@ -190,7 +190,7 @@ it('can generate responsive images', function () {
 });
 
 it('can generate responsive images on condition', function () {
-    $testModel = new class() extends TestModelWithConversion
+    $testModel = new class extends TestModelWithConversion
     {
         public function registerMediaCollections(): void
         {
@@ -216,7 +216,7 @@ it('can generate responsive images on condition', function () {
 });
 
 test('if the single file method is specified it will delete all other media and will only keep the new one', function () {
-    $testModel = new class() extends TestModelWithConversion
+    $testModel = new class extends TestModelWithConversion
     {
         public function registerMediaCollections(): void
         {
@@ -235,8 +235,51 @@ test('if the single file method is specified it will delete all other media and 
     expect($model->getMedia('images'))->toHaveCount(1);
 });
 
+test('a single file collection keeps the media that was just added even when it has a lower order column', function () {
+    $testModel = new class extends TestModelWithConversion
+    {
+        public function registerMediaCollections(): void
+        {
+            $this
+                ->addMediaCollection('avatar')
+                ->singleFile();
+        }
+    };
+
+    $bucket = $testModel::create(['name' => 'bucket']);
+
+    $bucketMedia = [];
+    foreach (range(1, 5) as $index) {
+        $bucketMedia[$index] = $bucket
+            ->addMedia($this->getTestJpg())
+            ->preservingOriginal()
+            ->usingFileName("bucket-{$index}.jpg")
+            ->toMediaCollection('incoming');
+    }
+
+    $destination = $testModel::create(['name' => 'destination']);
+    $bucketMedia[5]->copy($destination, 'avatar');
+
+    $bucketMedia[3]->delete();
+    $bucketMedia[4]->delete();
+    $bucketMedia[5]->delete();
+
+    $newBucketMedia = $bucket
+        ->addMedia($this->getTestJpg())
+        ->preservingOriginal()
+        ->usingFileName('bucket-new.jpg')
+        ->toMediaCollection('incoming');
+
+    expect($newBucketMedia->order_column)->toBeLessThan(5);
+
+    $newBucketMedia->copy($destination, 'avatar');
+
+    expect($destination->fresh()->getMedia('avatar'))->toHaveCount(1);
+    expect($destination->fresh()->getFirstMedia('avatar')->file_name)->toBe('bucket-new.jpg');
+});
+
 test('if the only keeps latest method is specified it will delete all other media and will only keep the latest n ones', function () {
-    $testModel = new class() extends TestModelWithConversion
+    $testModel = new class extends TestModelWithConversion
     {
         public function registerMediaCollections(): void
         {

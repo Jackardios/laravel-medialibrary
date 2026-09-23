@@ -9,6 +9,10 @@ parameters:
 			path: src/MediaCollections/Models/Media.php
 
 		-
-			message: "#^Call to an undefined method Illuminate\\\\Database\\\\Eloquent\\\\Builder\\:\\:withTrashed\\(\\)\\.$#"
+			message: "#^Method Spatie\\\\MediaLibrary\\\\HasMedia\\:\\:registerAllMediaConversions\\(\\) invoked with 1 parameter, 0 required\\.$#"
 			count: 1
-			path: src/MediaCollections/MediaRepository.php
+			path: src/Conversions/ConversionCollection.php
+
+		-
+			message: "#FFMpeg#"
+			path: src/Conversions/ImageGenerators/Video.php

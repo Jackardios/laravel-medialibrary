@@ -20,6 +20,9 @@ class HtmlableMedia implements \Stringable, Htmlable
         protected Media $media
     ) {}
 
+    /**
+     * @return $this
+     */
     public function attributes(array $attributes): self
     {
         if (is_array($attributes['class'] ?? null)) {
@@ -35,6 +38,9 @@ class HtmlableMedia implements \Stringable, Htmlable
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function conversion(string $conversionName): self
     {
         $this->conversionName = $conversionName;
@@ -42,6 +48,9 @@ class HtmlableMedia implements \Stringable, Htmlable
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function lazy(): self
     {
         $this->loadingAttributeValue = ('lazy');
@@ -51,7 +60,7 @@ class HtmlableMedia implements \Stringable, Htmlable
 
     public function toHtml(): string
     {
-        $imageGenerator = ImageGeneratorFactory::forMedia($this->media) ?? new Image();
+        $imageGenerator = ImageGeneratorFactory::forMedia($this->media) ?? new Image;
 
         if (! $imageGenerator->canHandleMime($this->media->mime_type)) {
             return '';
@@ -94,7 +103,7 @@ class HtmlableMedia implements \Stringable, Htmlable
         $media = $this->media;
         $conversion = $this->conversionName;
 
-        return view("media-library::{$viewName}", compact(
+        return view("media-library::{$viewName}", compact( // @phpstan-ignore argument.type
             'media',
             'conversion',
             'attributeString',

@@ -12,6 +12,7 @@ use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskCannotBeAccessed;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileIsTooBig;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileNameNotAllowed;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileUnacceptableForCollection;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\UnknownType;
 use Spatie\MediaLibrary\MediaCollections\File as PendingFile;
@@ -23,6 +24,9 @@ use Spatie\MediaLibraryPro\Models\TemporaryUpload;
 use Symfony\Component\HttpFoundation\File\File as SymfonyFile;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
+/**
+ * @template TMedia of \Spatie\MediaLibrary\MediaCollections\Models\Media = \Spatie\MediaLibrary\MediaCollections\Models\Media
+ */
 class FileAdder
 {
     use Macroable;
@@ -48,6 +52,8 @@ class FileAdder
 
     protected string $diskName = '';
 
+    protected ?string $onQueue = null;
+
     protected ?int $fileSize = null;
 
     protected string $conversionsDiskName = '';
@@ -66,14 +72,20 @@ class FileAdder
         $this->fileNameSanitizer = fn ($fileName) => $this->defaultSanitizer($fileName);
     }
 
+    /**
+     * @return $this
+     */
     public function setSubject(Model $subject): self
     {
-        /** @var HasMedia $subject */
+        /** @var HasMedia $subject */ // @phpstan-ignore varTag.nativeType
         $this->subject = $subject;
 
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function setFile($file): self
     {
         $this->file = $file;
@@ -110,13 +122,16 @@ class FileAdder
             return $this;
         }
 
-        if ($file instanceof TemporaryUpload) {
+        if ($this->isInstanceOfTemporaryUploadModel($file)) {
             return $this;
         }
 
         throw UnknownType::create();
     }
 
+    /**
+     * @return $this
+     */
     public function preservingOriginal(bool $preserveOriginal = true): self
     {
         $this->preserveOriginal = $preserveOriginal;
@@ -124,11 +139,17 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function usingName(string $name): self
     {
         return $this->setName($name);
     }
 
+    /**
+     * @return $this
+     */
     public function setName(string $name): self
     {
         $this->mediaName = $name;
@@ -136,6 +157,9 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function setOrder(?int $order): self
     {
         $this->order = $order;
@@ -143,11 +167,17 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function usingFileName(string $fileName): self
     {
         return $this->setFileName($fileName);
     }
 
+    /**
+     * @return $this
+     */
     public function setFileName(string $fileName): self
     {
         $this->fileName = $fileName;
@@ -155,6 +185,9 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function setFileSize(int $fileSize): self
     {
         $this->fileSize = $fileSize;
@@ -162,6 +195,9 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function withCustomProperties(array $customProperties): self
     {
         $this->customProperties = $customProperties;
@@ -169,6 +205,9 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function storingConversionsOnDisk(string $diskName): self
     {
         $this->conversionsDiskName = $diskName;
@@ -176,6 +215,19 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return $this
+     */
+    public function onQueue(?string $queue = null): self
+    {
+        $this->onQueue = $queue;
+
+        return $this;
+    }
+
+    /**
+     * @return $this
+     */
     public function withManipulations(array $manipulations): self
     {
         $this->manipulations = $manipulations;
@@ -183,6 +235,9 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function withProperties(array $properties): self
     {
         $this->properties = $properties;
@@ -190,11 +245,17 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function withAttributes(array $properties): self
     {
         return $this->withProperties($properties);
     }
 
+    /**
+     * @return $this
+     */
     public function withResponsiveImages(): self
     {
         $this->generateResponsiveImages = true;
@@ -202,6 +263,9 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function withResponsiveImagesIf($condition): self
     {
         $this->generateResponsiveImages = (bool) (is_callable($condition) ? $condition() : $condition);
@@ -209,6 +273,9 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function addCustomHeaders(array $customRemoteHeaders): self
     {
         $this->customHeaders = $customRemoteHeaders;
@@ -218,11 +285,17 @@ class FileAdder
         return $this;
     }
 
+    /**
+     * @return TMedia
+     */
     public function toMediaCollectionOnCloudDisk(string $collectionName = 'default'): Media
     {
         return $this->toMediaCollection($collectionName, config('filesystems.cloud'));
     }
 
+    /**
+     * @return TMedia
+     */
     public function toMediaCollectionFromRemote(string $collectionName = 'default', string $diskName = ''): Media
     {
         $storage = Storage::disk($this->file->getDisk());
@@ -239,7 +312,7 @@ class FileAdder
 
         $mediaClass = $this->subject?->getMediaModel() ?? config('media-library.media_model');
         /** @var Media $media */
-        $media = new $mediaClass();
+        $media = new $mediaClass;
 
         $media->name = $this->mediaName;
 
@@ -276,6 +349,9 @@ class FileAdder
         return $media;
     }
 
+    /**
+     * @return TMedia
+     */
     public function toMediaCollection(string $collectionName = 'default', string $diskName = ''): Media
     {
         $sanitizedFileName = ($this->fileNameSanitizer)($this->fileName);
@@ -286,7 +362,7 @@ class FileAdder
             return $this->toMediaCollectionFromRemote($collectionName, $diskName);
         }
 
-        if ($this->file instanceof TemporaryUpload) {
+        if ($this->isInstanceOfTemporaryUploadModel($this->file)) {
             return $this->toMediaCollectionFromTemporaryUpload($collectionName, $diskName, $this->fileName);
         }
 
@@ -302,7 +378,7 @@ class FileAdder
 
         $mediaClass = $this->subject?->getMediaModel() ?? config('media-library.media_model');
         /** @var Media $media */
-        $media = new $mediaClass();
+        $media = new $mediaClass;
 
         $media->name = $this->mediaName;
 
@@ -341,6 +417,9 @@ class FileAdder
         return $media;
     }
 
+    /**
+     * @return TMedia
+     */
     public function toMediaLibrary(string $collectionName = 'default', string $diskName = ''): Media
     {
         return $this->toMediaCollection($collectionName, $diskName);
@@ -377,6 +456,12 @@ class FileAdder
             }
         }
 
+        $configuredConversionsDiskName = config('media-library.conversions_disk_name');
+
+        if (! empty($configuredConversionsDiskName)) {
+            return $configuredConversionsDiskName;
+        }
+
         return $originalsDiskName;
     }
 
@@ -387,13 +472,100 @@ class FileAdder
         }
     }
 
+    /**
+     * Default list of executable extensions that are blocked anywhere in an
+     * uploaded file name. Referenced by `config/media-library.php` so the
+     * shipped config and the in-code fallback cannot drift.
+     *
+     * @var array<int, string>
+     */
+    public static array $defaultDisallowedExtensions = [
+        'php', 'php3', 'php4', 'php5', 'php6', 'php7', 'php8',
+        'phtml', 'phtm', 'pht', 'phps', 'phar',
+        'shtml', 'shtm', 'stm',
+        'htaccess', 'htpasswd',
+        'cgi', 'pl', 'asp', 'aspx', 'jsp', 'jspx',
+    ];
+
     public function defaultSanitizer(string $fileName): string
     {
-        $fileName = preg_replace('#\p{C}+#u', '', $fileName);
+        $sanitizedFileName = preg_replace('#\p{C}+#u', '', $fileName);
 
-        return str_replace(['#', '/', '\\', ' '], '-', $fileName);
+        $sanitizedFileName = str_replace(['#', '/', '\\', ' '], '-', $sanitizedFileName);
+
+        $this->guardAgainstDisallowedFileName($fileName, $sanitizedFileName);
+
+        return $sanitizedFileName;
     }
 
+    protected function guardAgainstDisallowedFileName(string $originalFileName, string $sanitizedFileName): void
+    {
+        $extensions = $this->extensionsFromFileName($sanitizedFileName);
+
+        $offending = array_intersect($extensions, $this->disallowedExtensions());
+
+        if ($offending !== []) {
+            throw FileNameNotAllowed::create($originalFileName, $sanitizedFileName, reset($offending));
+        }
+
+        $allowedExtensions = $this->allowedExtensions();
+
+        if ($allowedExtensions === []) {
+            return;
+        }
+
+        $finalExtension = strtolower(pathinfo($sanitizedFileName, PATHINFO_EXTENSION));
+
+        if (! in_array($finalExtension, $allowedExtensions, true)) {
+            throw FileNameNotAllowed::create($originalFileName, $sanitizedFileName, $finalExtension ?: null);
+        }
+    }
+
+    /**
+     * Returns every dot-separated segment after the first one, so the
+     * disallowed-extension check can catch a dangerous extension that is
+     * not the final one (for example, the `php` segment in `shell.php.jpg`).
+     *
+     * @return array<int, string>
+     */
+    protected function extensionsFromFileName(string $fileName): array
+    {
+        $parts = explode('.', strtolower($fileName));
+
+        array_shift($parts);
+
+        return $parts;
+    }
+
+    /** @return array<int, string> */
+    protected function disallowedExtensions(): array
+    {
+        $extensions = config('media-library.disallowed_extensions') ?? self::$defaultDisallowedExtensions;
+
+        return $this->normalizeExtensions($extensions);
+    }
+
+    /** @return array<int, string> */
+    protected function allowedExtensions(): array
+    {
+        return $this->normalizeExtensions(config('media-library.allowed_extensions') ?? []);
+    }
+
+    /**
+     * @param  array<int, string>  $extensions
+     * @return array<int, string>
+     */
+    protected function normalizeExtensions(array $extensions): array
+    {
+        return array_map(
+            fn (string $extension) => ltrim(strtolower($extension), '.'),
+            $extensions,
+        );
+    }
+
+    /**
+     * @return $this
+     */
     public function sanitizingFileName(callable $fileNameSanitizer): self
     {
         $this->fileNameSanitizer = $fileNameSanitizer;
@@ -448,11 +620,13 @@ class FileAdder
             if ($fileAdder->file instanceof RemoteFile) {
                 Storage::disk($fileAdder->file->getDisk())->delete($fileAdder->file->getKey());
             } else {
-                unlink($fileAdder->pathToFile);
+                if (file_exists($fileAdder->pathToFile)) {
+                    unlink($fileAdder->pathToFile);
+                }
             }
         }
 
-        if ($this->generateResponsiveImages && (new ImageGenerator())->canConvert($media)) {
+        if ($this->generateResponsiveImages && (new ImageGenerator)->canConvert($media)) {
             $generateResponsiveImagesJobClass = config('media-library.jobs.generate_responsive_images', GenerateResponsiveImagesJob::class);
 
             $job = new $generateResponsiveImagesJobClass($media);
@@ -461,7 +635,7 @@ class FileAdder
                 $job->onConnection($customConnection);
             }
 
-            if ($customQueue = config('media-library.queue_name')) {
+            if ($customQueue = ($this->onQueue ?? config('media-library.queue_name'))) {
                 $job->onQueue($customQueue);
             }
 
@@ -474,7 +648,13 @@ class FileAdder
             $collectionMedia = $subject->getMedia($media->collection_name);
 
             if ($collectionMedia->count() > $collectionSizeLimit) {
-                $model->clearMediaCollectionExcept($media->collection_name, $collectionMedia->slice(-$collectionSizeLimit, $collectionSizeLimit));
+                $mediaToKeep = $collectionMedia
+                    ->reject(fn (Media $collectionItem) => $collectionItem->is($media))
+                    ->sortByDesc($media->getKeyName())
+                    ->take($collectionSizeLimit - 1)
+                    ->push($media);
+
+                $model->clearMediaCollectionExcept($media->collection_name, $mediaToKeep);
             }
         }
     }
@@ -540,5 +720,16 @@ class FileAdder
         return $extension
             ? $file.'.'.$extension
             : $file;
+    }
+
+    protected function isInstanceOfTemporaryUploadModel(mixed $file): bool
+    {
+        $model = config('media-library.temporary_upload_model');
+
+        if ($model === null) {
+            return false;
+        }
+
+        return $file instanceof $model;
     }
 }

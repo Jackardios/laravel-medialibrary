@@ -27,7 +27,11 @@ class PerformConversionAction
 
         event(new ConversionWillStartEvent($media, $conversion, $copiedOriginalFile));
 
-        $manipulationResult = (new PerformManipulationsAction())->execute($media, $conversion, $copiedOriginalFile);
+        $manipulationResult = (new PerformManipulationsAction)->execute($media, $conversion, $copiedOriginalFile);
+
+        if (! $manipulationResult) {
+            return;
+        }
 
         $newFileName = $conversion->getConversionFile($media);
 

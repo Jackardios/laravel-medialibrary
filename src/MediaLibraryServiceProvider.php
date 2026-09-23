@@ -32,8 +32,9 @@ class MediaLibraryServiceProvider extends PackageServiceProvider
     public function packageBooted(): void
     {
         $mediaClass = config('media-library.media_model', Media::class);
+        $mediaObserverClass = config('media-library.media_observer', MediaObserver::class);
 
-        $mediaClass::observe(new MediaObserver());
+        $mediaClass::observe($this->app->make($mediaObserverClass));
     }
 
     public function packageRegistered(): void
@@ -44,7 +45,7 @@ class MediaLibraryServiceProvider extends PackageServiceProvider
         $this->app->scoped(MediaRepository::class, function () {
             $mediaClass = config('media-library.media_model');
 
-            return new MediaRepository(new $mediaClass());
+            return new MediaRepository(new $mediaClass);
         });
     }
 }
