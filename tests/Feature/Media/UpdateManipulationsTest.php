@@ -1,5 +1,6 @@
 <?php
 
+use Spatie\Image\Enums\Fit;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
 
@@ -76,4 +77,50 @@ it('will not create derived files when manipulations have not changed', function
     $modificationTimeAfterManipulationChanged = filemtime($media->getPath('update_test'));
 
     expect($modificationTimeAfterManipulationChanged)->toEqual($conversionModificationTime);
+});
+
+it('performs manipulations stored in the database with enum arguments by position', function () {
+    $testModelClass = new class extends TestModel
+    {
+        public function registerMediaConversions(?Media $media = null): void
+        {
+            $this->addMediaConversion('update_test')->nonQueued();
+        }
+    };
+
+    $testModel = $testModelClass::find($this->testModel->id);
+
+    $media = $testModel
+        ->addMedia($this->getTestJpg())
+        ->withManipulations(['update_test' => ['fit' => [Fit::Contain, 30, 30]]])
+        ->toMediaCollection('images');
+
+    expect($media->fresh()->manipulations)->toBe(['update_test' => ['fit' => ['contain', 30, 30]]]);
+
+    [$width, $height] = getimagesize($media->getPath('update_test'));
+
+    expect(max($width, $height))->toBe(30);
+});
+
+it('performs resize constraints stored in the database', function () {
+    $testModelClass = new class extends TestModel
+    {
+        public function registerMediaConversions(?Media $media = null): void
+        {
+            $this->addMediaConversion('update_test')->nonQueued();
+        }
+    };
+
+    $testModel = $testModelClass::find($this->testModel->id);
+
+    $media = $testModel->addMedia($this->getTestJpg())->toMediaCollection('images');
+
+    $media->manipulations = [
+        'update_test' => ['width' => ['width' => 40, 'constraints' => ['preserveAspectRatio']]],
+    ];
+    $media->save();
+
+    [$width] = getimagesize($media->getPath('update_test'));
+
+    expect($width)->toBe(40);
 });

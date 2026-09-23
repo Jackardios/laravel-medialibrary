@@ -6,6 +6,8 @@ use Spatie\Image\Enums\Constraint;
 use Spatie\Image\Enums\CropPosition;
 use Spatie\Image\Enums\Fit;
 use Spatie\Image\Enums\FlipDirection;
+use Spatie\Image\Enums\Orientation;
+use Spatie\Image\Enums\Unit;
 use Spatie\Image\Image;
 use Spatie\MediaLibrary\Conversions\Manipulations;
 
@@ -87,4 +89,54 @@ it('handles parameters that are already enum instances', function () {
         ->and($transformedParameters['crop']['position'])->toBeInstanceOf(CropPosition::class)
         ->and($transformedParameters['fit']['fit'])->toBeInstanceOf(Fit::class)
         ->and($transformedParameters['flip']['flip'])->toBeInstanceOf(FlipDirection::class);
+});
+
+it('casts the watermark units stored as strings', function () {
+    $parameters = (new Manipulations)->transformParameters('watermark', [
+        'watermarkImage' => $this->getTestPng(),
+        'paddingUnit' => 'percent',
+        'widthUnit' => 'percent',
+        'heightUnit' => 'pixel',
+    ]);
+
+    expect($parameters['paddingUnit'])->toBe(Unit::Percent)
+        ->and($parameters['widthUnit'])->toBe(Unit::Percent)
+        ->and($parameters['heightUnit'])->toBe(Unit::Pixel);
+
+    Image::load($this->getTestJpg())->watermark(...$parameters);
+});
+
+it('casts enum parameters passed by position', function (string $manipulationName, array $parameters, int $position, UnitEnum $expected) {
+    // Positional arguments are what `withManipulations(['thumb' => ['fit' => [Fit::Contain, 30, 30]]])`
+    // stores; after the JSON round trip through the manipulations column they are plain values.
+    $transformed = (new Manipulations)->transformParameters($manipulationName, $parameters);
+
+    expect($transformed[$position])->toBe($expected);
+
+    Image::load($this->getTestJpg())->$manipulationName(...$transformed);
+})->with([
+    'fit' => ['fit', ['contain', 30, 30], 0, Fit::Contain],
+    'crop' => ['crop', [20, 20, 'topLeft'], 2, CropPosition::TopLeft],
+    'border' => ['border', [5, 'expand'], 1, BorderType::Expand],
+    'flip' => ['flip', ['horizontal'], 0, FlipDirection::Horizontal],
+    'orientation' => ['orientation', [90], 0, Orientation::Rotate90],
+    'resizeCanvas' => ['resizeCanvas', [400, 400, 'center'], 2, AlignPosition::Center],
+]);
+
+it('casts constraints passed by position', function () {
+    $transformed = (new Manipulations)->transformParameters('resize', [30, 30, ['preserveAspectRatio']]);
+
+    expect($transformed[2])->toBe([Constraint::PreserveAspectRatio]);
+
+    Image::load($this->getTestJpg())->resize(...$transformed);
+});
+
+it('casts a numeric string for an int-backed enum', function () {
+    $transformed = (new Manipulations)->transformParameters('orientation', ['orientation' => '90']);
+
+    expect($transformed['orientation'])->toBe(Orientation::Rotate90);
+});
+
+it('leaves parameters of unknown manipulations untouched', function () {
+    expect((new Manipulations)->transformParameters('doesNotExist', ['contain']))->toBe(['contain']);
 });

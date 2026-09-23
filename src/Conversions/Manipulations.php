@@ -2,20 +2,24 @@
 
 namespace Spatie\MediaLibrary\Conversions;
 
+use BackedEnum;
+use ReflectionEnum;
+use ReflectionMethod;
+use ReflectionNamedType;
 use Spatie\Image\Drivers\ImageDriver;
-use Spatie\Image\Enums\AlignPosition;
-use Spatie\Image\Enums\BorderType;
 use Spatie\Image\Enums\Constraint;
-use Spatie\Image\Enums\CropPosition;
-use Spatie\Image\Enums\Fit;
-use Spatie\Image\Enums\FlipDirection;
-use Spatie\Image\Enums\Orientation;
-use Spatie\Image\Enums\Unit;
 
 /** @mixin ImageDriver */
 class Manipulations
 {
     protected array $manipulations = [];
+
+    /**
+     * Enum-typed parameters per image driver method, derived from the driver's signatures.
+     *
+     * @var array<string, array<int, array{0: string, 1: class-string<BackedEnum>, 2: bool}>>
+     */
+    private static array $enumParameters = [];
 
     public function __construct(array $manipulations = [])
     {
@@ -95,65 +99,78 @@ class Manipulations
         return $this->manipulations;
     }
 
+    /**
+     * Cast the plain values that manipulations stored in the database carry (after the JSON
+     * round trip an enum is just its backing value) back to the enums the image driver expects.
+     * Works for arguments passed by name and by position.
+     */
     public function transformParameters(int|string $manipulationName, mixed $parameters): mixed
     {
-        switch ($manipulationName) {
-            case 'border':
-                if (isset($parameters['type']) && ! $parameters['type'] instanceof BorderType) {
-                    $parameters['type'] = BorderType::from($parameters['type']);
-                }
-                break;
-            case 'watermark':
-                if (isset($parameters['fit']) && ! $parameters['fit'] instanceof Fit) {
-                    $parameters['fit'] = Fit::from($parameters['fit']);
-                }
-                foreach (['paddingUnit', 'widthUnit', 'heightUnit'] as $unitParameter) {
-                    if (isset($parameters[$unitParameter]) && ! $parameters[$unitParameter] instanceof Unit) {
-                        $parameters[$unitParameter] = Unit::from($parameters[$unitParameter]);
-                    }
-                }
-                // Fallthrough intended for position
-            case 'resizeCanvas':
-            case 'insert':
-                if (isset($parameters['position']) && ! $parameters['position'] instanceof AlignPosition) {
-                    $parameters['position'] = AlignPosition::from($parameters['position']);
-                }
-                break;
-            case 'resize':
-            case 'width':
-            case 'height':
-                if (isset($parameters['constraints']) && is_array($parameters['constraints'])) {
-                    foreach ($parameters['constraints'] as &$constraint) {
-                        if (! $constraint instanceof Constraint) {
-                            $constraint = Constraint::from($constraint);
-                        }
-                    }
-                }
-                break;
-            case 'crop':
-                if (isset($parameters['position']) && ! $parameters['position'] instanceof CropPosition) {
-                    $parameters['position'] = CropPosition::from($parameters['position']);
-                }
-                break;
-            case 'fit':
-                if (isset($parameters['fit']) && ! $parameters['fit'] instanceof Fit) {
-                    $parameters['fit'] = Fit::from($parameters['fit']);
-                }
-                break;
-            case 'flip':
-                if (isset($parameters['flip']) && ! $parameters['flip'] instanceof FlipDirection) {
-                    $parameters['flip'] = FlipDirection::from($parameters['flip']);
-                }
-                break;
-            case 'orientation':
-                if (isset($parameters['orientation']) && ! $parameters['orientation'] instanceof Orientation) {
-                    $parameters['orientation'] = Orientation::from($parameters['orientation']);
-                }
-                break;
-            default:
-                break;
+        if (! is_string($manipulationName) || ! is_array($parameters)) {
+            return $parameters;
+        }
+
+        foreach (self::enumParameters($manipulationName) as $position => [$name, $enumClass, $isList]) {
+            $key = match (true) {
+                array_key_exists($name, $parameters) => $name,
+                array_key_exists($position, $parameters) => $position,
+                default => null,
+            };
+
+            if ($key === null) {
+                continue;
+            }
+
+            $parameters[$key] = $isList && is_array($parameters[$key])
+                ? array_map(fn (mixed $value) => self::castToEnum($value, $enumClass), $parameters[$key])
+                : self::castToEnum($parameters[$key], $enumClass);
         }
 
         return $parameters;
+    }
+
+    /**
+     * The enum-typed parameters of an image driver method, by position.
+     *
+     * @return array<int, array{0: string, 1: class-string<BackedEnum>, 2: bool}>
+     */
+    protected static function enumParameters(string $manipulationName): array
+    {
+        if (array_key_exists($manipulationName, self::$enumParameters)) {
+            return self::$enumParameters[$manipulationName];
+        }
+
+        $enumParameters = [];
+
+        if (method_exists(ImageDriver::class, $manipulationName)) {
+            foreach ((new ReflectionMethod(ImageDriver::class, $manipulationName))->getParameters() as $parameter) {
+                $type = $parameter->getType();
+
+                if ($type instanceof ReflectionNamedType && is_subclass_of($type->getName(), BackedEnum::class)) {
+                    $enumParameters[$parameter->getPosition()] = [$parameter->getName(), $type->getName(), false];
+                }
+
+                // `resize()`, `width()` and `height()` take a plain array of Constraint enums.
+                if ($parameter->getName() === 'constraints') {
+                    $enumParameters[$parameter->getPosition()] = [$parameter->getName(), Constraint::class, true];
+                }
+            }
+        }
+
+        return self::$enumParameters[$manipulationName] = $enumParameters;
+    }
+
+    /** @param class-string<BackedEnum> $enumClass */
+    protected static function castToEnum(mixed $value, string $enumClass): mixed
+    {
+        if (! is_string($value) && ! is_int($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && is_numeric($value) && (string) (new ReflectionEnum($enumClass))->getBackingType() === 'int') {
+            $value = (int) $value;
+        }
+
+        return $enumClass::from($value);
     }
 }
