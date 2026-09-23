@@ -47,7 +47,7 @@ function getS3BaseTestDirectory(): string
 
 function s3BaseUrl(): string
 {
-    return 'https://laravel-medialibrary-tests.s3.eu-west-1.amazonaws.com';
+    return rtrim(getenv('AWS_URL') ?: 'https://laravel-medialibrary-tests.s3.eu-west-1.amazonaws.com', '/');
 }
 
 /*

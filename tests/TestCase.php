@@ -297,6 +297,10 @@ abstract class TestCase extends Orchestra
             'secret' => getenv('AWS_SECRET_ACCESS_KEY'),
             'region' => getenv('AWS_DEFAULT_REGION'),
             'bucket' => getenv('AWS_BUCKET'),
+            // Set these to run the S3 tests against an S3-compatible server such as MinIO.
+            'endpoint' => getenv('AWS_ENDPOINT') ?: null,
+            'url' => getenv('AWS_URL') ?: null,
+            'use_path_style_endpoint' => (bool) getenv('AWS_USE_PATH_STYLE_ENDPOINT'),
         ]);
     }
 
