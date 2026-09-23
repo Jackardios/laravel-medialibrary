@@ -17,12 +17,32 @@ class PerformConversionAction
         Media $media,
         string $copiedOriginalFile
     ): void {
+        if (! $this->perform($conversion, $media, $copiedOriginalFile)) {
+            return;
+        }
+
+        $media->markAsConversionGenerated($conversion->getName());
+
+        event(new ConversionHasBeenCompletedEvent($media, $conversion));
+    }
+
+    /**
+     * Generate the conversion and store it, without recording it on the media or announcing it:
+     * FileManipulator records a whole batch with one write and then fires the completed events.
+     *
+     * @return bool whether a conversion file was stored
+     */
+    public function perform(
+        Conversion $conversion,
+        Media $media,
+        string $copiedOriginalFile
+    ): bool {
         $imageGenerator = ImageGeneratorFactory::forMedia($media);
 
         $imageFile = $imageGenerator->convert($copiedOriginalFile, $conversion);
 
         if (! $imageFile) {
-            return;
+            return false;
         }
 
         event(new ConversionWillStartEvent($media, $conversion, $imageFile));
@@ -30,7 +50,7 @@ class PerformConversionAction
         $manipulationResult = (new PerformManipulationsAction)->execute($media, $conversion, $imageFile);
 
         if (! $manipulationResult) {
-            return;
+            return false;
         }
 
         $newFileName = $conversion->getConversionFile($media);
@@ -54,11 +74,7 @@ class PerformConversionAction
 
         app(Filesystem::class)->copyToMediaLibrary($renamedFile, $media, 'conversions');
 
-        // Mark the conversion in memory only; the caller (FileManipulator) persists once
-        // after all conversions for this media have been generated.
-        $media->markAsConversionGenerated($conversion->getName(), persist: false);
-
-        event(new ConversionHasBeenCompletedEvent($media, $conversion));
+        return true;
     }
 
     protected function copyInLocalDirectory(

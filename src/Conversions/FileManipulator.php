@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Spatie\MediaLibrary\Conversions\Actions\PerformConversionAction;
+use Spatie\MediaLibrary\Conversions\Events\ConversionHasBeenCompletedEvent;
 use Spatie\MediaLibrary\Conversions\ImageGenerators\ImageGeneratorFactory;
 use Spatie\MediaLibrary\Conversions\Jobs\PerformConversionsJob;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
@@ -248,22 +249,37 @@ class FileManipulator
         Media $media,
         string $copiedOriginalFile
     ): void {
-        $performedConversions = 0;
+        $action = new PerformConversionAction;
+        $completedConversions = [];
+        $failure = null;
 
         try {
             foreach ($conversions as $conversion) {
-                (new PerformConversionAction)->execute($conversion, $media, $copiedOriginalFile);
+                if ($action->perform($conversion, $media, $copiedOriginalFile)) {
+                    $media->markAsConversionGenerated($conversion->getName(), persist: false);
 
-                $performedConversions++;
+                    $completedConversions[] = $conversion;
+                }
             }
-        } finally {
-            // Persist once for all conversions instead of once per conversion. `saveOrTouch()`
-            // bumps `updated_at` even when the `generated_conversions` value is unchanged (e.g.
-            // re-generating an existing conversion). The `finally` keeps already-completed
-            // conversions persisted even if a later one throws.
-            if ($performedConversions > 0 || $media->isDirty('generated_conversions')) {
-                $media->saveOrTouch();
-            }
+        } catch (Throwable $exception) {
+            $failure = $exception;
+        }
+
+        // Persist once for all conversions instead of once per conversion, including the ones
+        // that completed before a later one failed. `saveOrTouch()` bumps `updated_at` even when
+        // `generated_conversions` is unchanged (re-generating an existing conversion).
+        if ($completedConversions !== [] || $media->isDirty('generated_conversions')) {
+            $media->saveOrTouch();
+        }
+
+        // Announce the conversions only once they are recorded, so listeners that read the
+        // media from the database (or refresh it) see them as generated.
+        foreach ($completedConversions as $conversion) {
+            event(new ConversionHasBeenCompletedEvent($media, $conversion));
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 
