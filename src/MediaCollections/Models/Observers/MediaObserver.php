@@ -40,15 +40,12 @@ class MediaObserver
         $original = $media->getOriginal('manipulations');
 
         if ($media->manipulations !== $original) {
-            $eventDispatcher = Media::getEventDispatcher();
-            Media::unsetEventDispatcher();
-
             /** @var FileManipulator $fileManipulator */
             $fileManipulator = app(FileManipulator::class);
 
-            $fileManipulator->createDerivedFiles($media);
-
-            Media::setEventDispatcher($eventDispatcher);
+            // The event dispatcher is shared by every model, so it has to come back even when
+            // the conversions throw; withoutEvents() restores it in a finally block.
+            Media::withoutEvents(fn () => $fileManipulator->createDerivedFiles($media));
         }
     }
 

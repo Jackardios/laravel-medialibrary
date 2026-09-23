@@ -1,6 +1,8 @@
 <?php
 
+use Illuminate\Database\Eloquent\Model;
 use Spatie\Image\Enums\Fit;
+use Spatie\MediaLibrary\Conversions\FileManipulator;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
 
@@ -149,4 +151,35 @@ it('performs the manipulation from the media-specific manipulations docs', funct
     [$width, $height] = getimagesize($media->getPath('update_test'));
 
     expect([$width, $height])->toBe([$originalHeight, $originalWidth]);
+});
+
+it('restores the model event dispatcher when regenerating after a manipulation change fails', function () {
+    $media = $this->testModelWithConversion->addMedia($this->getTestJpg())->toMediaCollection('images');
+
+    $this->app->instance(FileManipulator::class, new class extends FileManipulator
+    {
+        public function createDerivedFiles(
+            Media $media,
+            array $onlyConversionNames = [],
+            bool $onlyMissing = false,
+            bool $withResponsiveImages = false,
+            bool $queueAll = false,
+        ): void {
+            throw new RuntimeException('conversion failed');
+        }
+    });
+
+    $media->manipulations = ['thumb' => ['width' => [10]]];
+
+    expect(fn () => $media->save())->toThrow(RuntimeException::class, 'conversion failed');
+
+    // The dispatcher is shared by every Eloquent model: without it no model event fires again
+    // in this process (Octane, queue workers), e.g. new media would get no uuid.
+    expect(Model::getEventDispatcher())->not->toBeNull();
+
+    $this->app->forgetInstance(FileManipulator::class);
+
+    $otherMedia = $this->testModel->addMedia($this->getTestPng())->toMediaCollection();
+
+    expect($otherMedia->uuid)->not->toBeNull();
 });
