@@ -3,6 +3,7 @@
 namespace Spatie\MediaLibrary\Conversions;
 
 use BackedEnum;
+use Illuminate\Support\Arr;
 use ReflectionEnum;
 use ReflectionMethod;
 use ReflectionNamedType;
@@ -67,7 +68,8 @@ class Manipulations
     public function apply(ImageDriver $image): void
     {
         foreach ($this->manipulations as $manipulationName => $parameters) {
-            $parameters = $this->transformParameters($manipulationName, $parameters);
+            // A single argument may be stored without the array around it, e.g. `['orientation' => '90']`.
+            $parameters = $this->transformParameters($manipulationName, Arr::wrap($parameters));
             $image->$manipulationName(...$parameters);
         }
     }

@@ -124,3 +124,29 @@ it('performs resize constraints stored in the database', function () {
 
     expect($width)->toBe(40);
 });
+
+it('performs the manipulation from the media-specific manipulations docs', function () {
+    $testModelClass = new class extends TestModel
+    {
+        public function registerMediaConversions(?Media $media = null): void
+        {
+            $this->addMediaConversion('update_test')->nonQueued();
+        }
+    };
+
+    $testModel = $testModelClass::find($this->testModel->id);
+
+    $media = $testModel->addMedia($this->getTestJpg())->toMediaCollection('images');
+
+    [$originalWidth, $originalHeight] = getimagesize($media->getPath());
+
+    // docs/advanced-usage/storing-media-specific-manipulations.md
+    $media->manipulations = [
+        'update_test' => ['orientation' => '90'],
+    ];
+    $media->save();
+
+    [$width, $height] = getimagesize($media->getPath('update_test'));
+
+    expect([$width, $height])->toBe([$originalHeight, $originalWidth]);
+});
