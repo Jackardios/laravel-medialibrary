@@ -503,36 +503,46 @@ trait InteractsWithMedia
      */
     public function updateMedia(array $newMediaArray, string $collectionName = 'default'): Collection
     {
-        $this->removeMediaItemsNotPresentInArray($newMediaArray, $collectionName);
-
         $mediaClass = $this->getMediaModel();
         $mediaInstance = new $mediaClass;
         $keyName = $mediaInstance->getKeyName();
 
-        return collect($newMediaArray)
-            ->map(function (array $newMediaItem) use ($collectionName, $mediaClass, $keyName) {
-                static $orderColumn = 1;
+        $newMediaArray = array_values($newMediaArray);
 
-                $currentMedia = $mediaClass::findOrFail($newMediaItem[$keyName]);
+        // Refuse the whole array before changing anything.
+        $currentMedia = collect($newMediaArray)->map(function (array $newMediaItem) use ($collectionName, $mediaClass, $keyName) {
+            $currentMedia = $mediaClass::findOrFail($newMediaItem[$keyName]);
 
-                if ($currentMedia->collection_name !== $collectionName) {
-                    throw MediaCannotBeUpdated::doesNotBelongToCollection($collectionName, $currentMedia);
-                }
+            if ($currentMedia->model_type !== $this->getMorphClass() || (string) $currentMedia->model_id !== (string) $this->getKey()) {
+                throw MediaCannotBeUpdated::doesNotBelongToModel($currentMedia, $this);
+            }
 
-                if (array_key_exists('name', $newMediaItem)) {
-                    $currentMedia->name = $newMediaItem['name'];
-                }
+            if ($currentMedia->collection_name !== $collectionName) {
+                throw MediaCannotBeUpdated::doesNotBelongToCollection($collectionName, $currentMedia);
+            }
 
-                if (array_key_exists('custom_properties', $newMediaItem)) {
-                    $currentMedia->custom_properties = $newMediaItem['custom_properties'];
-                }
+            return $currentMedia;
+        });
 
-                $currentMedia->order_column = $orderColumn++;
+        $this->removeMediaItemsNotPresentInArray($newMediaArray, $collectionName);
 
-                $currentMedia->save();
+        return $currentMedia->map(function (Media $media, int $index) use ($newMediaArray) {
+            $newMediaItem = $newMediaArray[$index];
 
-                return $currentMedia;
-            });
+            if (array_key_exists('name', $newMediaItem)) {
+                $media->name = $newMediaItem['name'];
+            }
+
+            if (array_key_exists('custom_properties', $newMediaItem)) {
+                $media->custom_properties = $newMediaItem['custom_properties'];
+            }
+
+            $media->order_column = $index + 1;
+
+            $media->save();
+
+            return $media;
+        });
     }
 
     protected function removeMediaItemsNotPresentInArray(array $newMediaArray, string $collectionName = 'default'): void

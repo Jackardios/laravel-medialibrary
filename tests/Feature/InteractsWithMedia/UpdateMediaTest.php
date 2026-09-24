@@ -1,5 +1,8 @@
 <?php
 
+use Spatie\MediaLibrary\MediaCollections\Exceptions\MediaCannotBeUpdated;
+use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
+
 beforeEach(function () {
     $this->testModel->addMedia($this->getTestJpg())->usingName('test1')->preservingOriginal()->toMediaCollection();
     $this->testModel->addMedia($this->getTestJpg())->usingName('test2')->preservingOriginal()->toMediaCollection();
@@ -63,4 +66,30 @@ it('reorders media items', function () {
 
     expect($orderedMedia[1]->order_column)->toEqual($mediaArray[0]['order_column']);
     expect($orderedMedia[0]->order_column)->toEqual($mediaArray[1]['order_column']);
+});
+
+it('refuses to update media of another model', function () {
+    $otherMedia = TestModel::create(['name' => 'other'])
+        ->addMedia($this->getTestJpg())->usingName('other')->preservingOriginal()->toMediaCollection();
+
+    $mediaArray = $this->testModel->media->toArray();
+    $mediaArray[] = ['id' => $otherMedia->id, 'name' => 'changed'];
+
+    expect(fn () => $this->testModel->updateMedia($mediaArray))->toThrow(MediaCannotBeUpdated::class);
+
+    expect($otherMedia->fresh()->name)->toBe('other');
+});
+
+it('leaves the media untouched when the update array is refused', function () {
+    $otherCollectionMedia = $this->testModel
+        ->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('other-collection');
+
+    $mediaArray = [
+        ['id' => $this->testModel->media[0]->id, 'name' => 'changed'],
+        ['id' => $otherCollectionMedia->id],
+    ];
+
+    expect(fn () => $this->testModel->updateMedia($mediaArray))->toThrow(MediaCannotBeUpdated::class);
+
+    expect($this->testModel->fresh()->getMedia()->pluck('name')->all())->toBe(['test1', 'test2']);
 });
