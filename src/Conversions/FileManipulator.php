@@ -386,7 +386,7 @@ class FileManipulator
      */
     protected function hasResponsiveImagesOfOriginal(Media $media): bool
     {
-        return array_key_exists('media_library_original', $media->responsive_images);
+        return array_key_exists('media_library_original', $media->responsive_images ?? []);
     }
 
     protected function canConvertMedia(Media $media): bool

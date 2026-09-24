@@ -826,3 +826,16 @@ it('regenerates only the responsive images of the named conversions when trustin
 
     expect($media->getPath('keep_original_format'))->not->toBeFile();
 });
+
+it('regenerates a media stored without responsive images', function (array $options) {
+    $media = $this->testModelWithConversion->addMedia($this->getTestJpg())->toMediaCollection('images');
+    DB::table('media')->where('id', $media->id)->update(['responsive_images' => 'null']);
+    unlink($media->getPath('thumb'));
+
+    $this->artisan('media-library:regenerate', ['--with-responsive-images' => true, ...$options])->assertSuccessful();
+
+    expect($media->getPath('thumb'))->toBeFile();
+})->with([
+    'in the command' => [[]],
+    'queued per media' => [['--queue-all' => true]],
+]);
