@@ -17,6 +17,7 @@ use Spatie\MediaLibrary\MediaCollections\Exceptions\RequestDoesNotHaveFile;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\UnknownType;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\UnreachableUrl;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Spatie\MediaLibrary\Tests\TestSupport\LocalHttpServer;
 use Spatie\MediaLibrary\Tests\TestSupport\RenameOriginalFileNamer;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -271,14 +272,16 @@ it('will throw an exception when trying to add a non existing key from a request
 });
 
 it('can add a remote file to the media library', function () {
-    $url = 'https://spatie.be/docs/laravel-medialibrary/v9/images/header.jpg';
+    config()->set('media-library.media_downloader_trusted_hosts', ['127.0.0.1']);
+
+    $url = LocalHttpServer::url('/files/test.jpg');
 
     $media = $this->testModel
         ->addMediaFromUrl($url)
         ->toMediaCollection();
 
-    expect($media->name)->toEqual('header');
-    expect($this->getMediaDirectory("{$media->id}/header.jpg"))->toBeFile();
+    expect($media->name)->toEqual('test');
+    expect($this->getMediaDirectory("{$media->id}/test.jpg"))->toBeFile();
 });
 
 it('will not add local files when an url is expected', function () {
@@ -325,7 +328,9 @@ it('keeps the source file when natively copying it on the same disk fails', func
 });
 
 it('can add a remote file with a space in the name to the media library', function () {
-    $url = 'http://spatie.github.io/laravel-medialibrary/tests/TestSupport/testfiles/test%20with%20space.jpg';
+    config()->set('media-library.media_downloader_trusted_hosts', ['127.0.0.1']);
+
+    $url = LocalHttpServer::url('/files/test%20with%20space.jpg');
 
     $media = $this->testModel
         ->addMediaFromUrl($url)
@@ -366,7 +371,9 @@ it('derives the extension of a url without one from the type of the file', funct
 ]);
 
 it('will thrown an exception when a remote file could not be added', function () {
-    $url = 'https://docs.spatie.be/images/medialibrary/thisonedoesnotexist.jpg';
+    config()->set('media-library.media_downloader_trusted_hosts', ['127.0.0.1']);
+
+    $url = LocalHttpServer::url('/files/thisonedoesnotexist.jpg');
 
     $this->expectException(UnreachableUrl::class);
 
@@ -376,7 +383,9 @@ it('will thrown an exception when a remote file could not be added', function ()
 });
 
 it('will throw an exception when a remote file has an invalid mime type', function () {
-    $url = 'https://spatie.be/docs/laravel-medialibrary/v9/images/header.jpg';
+    config()->set('media-library.media_downloader_trusted_hosts', ['127.0.0.1']);
+
+    $url = LocalHttpServer::url('/files/test.jpg');
 
     $this->expectException(MimeTypeNotAllowed::class);
 
