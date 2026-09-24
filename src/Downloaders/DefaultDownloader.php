@@ -120,6 +120,11 @@ class DefaultDownloader implements Downloader
         if ($address !== null) {
             $port = parse_url($url, PHP_URL_PORT);
             $headers[] = 'Host: '.parse_url($url, PHP_URL_HOST).($port ? ":{$port}" : '');
+
+            // The url requested has no credentials, see urlToRequest().
+            if (($user = parse_url($url, PHP_URL_USER)) !== null) {
+                $headers[] = 'Authorization: Basic '.base64_encode(rawurldecode($user).':'.rawurldecode((string) parse_url($url, PHP_URL_PASS)));
+            }
         }
 
         return stream_context_create([

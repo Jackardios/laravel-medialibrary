@@ -127,3 +127,17 @@ it('throws when the url cannot be downloaded', function (string $downloader, str
     'redirect without a location' => '/status?code=300',
     'not modified' => '/status?code=304',
 ]);
+
+it('sends the query string, its user agent and the credentials of a checked url', function (string $downloader) {
+    app()->instance(UrlGuard::class, new UrlGuardResolvingMediaTest);
+
+    $temporaryFile = download($downloader, 'http://user:p%40ss@media.test:'.LocalHttpServer::port().'/request?a=1&b=2');
+
+    expect(json_decode(File::get($temporaryFile), true))->toBe([
+        'uri' => '/request?a=1&b=2',
+        'user_agent' => 'Spatie MediaLibrary',
+        'authorization' => 'Basic '.base64_encode('user:p@ss'),
+    ]);
+
+    unlink($temporaryFile);
+})->with('downloaders');

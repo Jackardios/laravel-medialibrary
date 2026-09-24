@@ -49,6 +49,15 @@ switch (true) {
 
         return;
 
+    case $path === '/request':
+        echo json_encode([
+            'uri' => $_SERVER['REQUEST_URI'],
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null,
+            'authorization' => $_SERVER['HTTP_AUTHORIZATION'] ?? null,
+        ]);
+
+        return;
+
     case $path === '/host':
         echo $_SERVER['HTTP_HOST'];
 
