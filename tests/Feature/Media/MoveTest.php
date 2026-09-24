@@ -55,3 +55,18 @@ it('can move media from one model to another on a specific disk', function () {
     expect('custom-name')->toEqual($movedMedia->name);
     expect('custom-property-value')->toEqual($movedMedia->getCustomProperty('custom-property-name'));
 });
+
+it('can move media to a model that is saved afterwards', function () {
+    $media = TestModel::create(['name' => 'test'])->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection();
+
+    $anotherModel = new TestModel(['name' => 'another-test']);
+    $media->move($anotherModel, 'images');
+    $anotherModel->save();
+
+    $movedMedia = $anotherModel->getFirstMedia('images');
+
+    expect($movedMedia->getPath())->toBeFile()
+        ->and(file_get_contents($movedMedia->getPath()))->toBe(file_get_contents($this->getTestJpg()))
+        ->and($movedMedia->file_name)->toBe('test.jpg')
+        ->and($media->getPath())->not->toBeFile();
+});

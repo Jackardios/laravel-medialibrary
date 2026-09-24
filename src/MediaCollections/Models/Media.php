@@ -41,6 +41,7 @@ use Spatie\MediaLibrary\Support\UrlGenerator\UrlGeneratorFactory;
 use Spatie\MediaLibraryPro\Models\TemporaryUpload;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Mime\MimeTypes;
+use Throwable;
 use WeakMap;
 
 /**
@@ -569,11 +570,11 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         string $fileName = '',
         ?Closure $fileAdderCallback = null
     ): self {
-        $temporaryDirectory = TemporaryDirectory::create();
+        // The file adder removes the copy once it is added, which for an unsaved model happens
+        // only when the model is created.
+        $temporaryFile = TemporaryDirectory::createFile();
 
         try {
-            $temporaryFile = $temporaryDirectory->path('/').DIRECTORY_SEPARATOR.$this->file_name;
-
             /** @var Filesystem $filesystem */
             $filesystem = app(Filesystem::class);
 
@@ -581,22 +582,24 @@ class Media extends Model implements Attachable, Htmlable, Responsable
 
             $fileAdder = $model
                 ->addMedia($temporaryFile)
+                ->withTemporaryFile()
                 ->usingName($this->name)
+                ->usingFileName($fileName !== '' ? $fileName : $this->file_name)
                 ->setOrder($this->order_column)
                 ->withManipulations($this->manipulations)
                 ->withCustomProperties($this->custom_properties);
-
-            if ($fileName !== '') {
-                $fileAdder->usingFileName($fileName);
-            }
 
             if ($fileAdderCallback instanceof Closure) {
                 $fileAdder = $fileAdderCallback($fileAdder);
             }
 
             return $fileAdder->toMediaCollection($collectionName, $diskName);
-        } finally {
-            $temporaryDirectory->delete();
+        } catch (Throwable $exception) {
+            if (is_file($temporaryFile)) {
+                unlink($temporaryFile);
+            }
+
+            throw $exception;
         }
     }
 

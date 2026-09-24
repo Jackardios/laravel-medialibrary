@@ -206,14 +206,17 @@ it('refuses to copy media whose original is missing', function () {
     expect(Media::count())->toBe(1);
 });
 
-it('removes its temporary directory when copying fails', function () {
+it('removes its temporary copy when copying succeeds or fails', function () {
     $temporaryDirectory = $this->getTempDirectory('copy-temp');
     config()->set('media-library.temporary_directory_path', $temporaryDirectory);
 
     $media = TestModel::create(['name' => 'test'])->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection();
 
+    $media->copy(TestModel::create(['name' => 'another-test']));
+
     expect(fn () => $media->copy(TestModel::create(['name' => 'another-test']), 'default', 'missing-disk'))
         ->toThrow(DiskDoesNotExist::class);
 
-    expect(File::directories($temporaryDirectory))->toBe([]);
+    expect(File::allFiles($temporaryDirectory))->toBe([])
+        ->and(File::directories($temporaryDirectory))->toBe([]);
 });
