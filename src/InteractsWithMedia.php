@@ -235,10 +235,12 @@ trait InteractsWithMedia
      */
     public function addMediaFromBase64(string $base64data, array|string ...$allowedMimeTypes): FileAdder
     {
-        // strip out data uri scheme information (see RFC 2397)
-        if (str_contains($base64data, ';base64')) {
-            [$_, $base64data] = explode(';', $base64data);
-            [$_, $base64data] = explode(',', $base64data);
+        // strip out data uri scheme information (see RFC 2397), which may carry parameters
+        // such as `data:image/jpeg;name=photo.jpg;base64,...`
+        $commaPosition = strpos($base64data, ',');
+
+        if ($commaPosition !== false && str_ends_with(substr($base64data, 0, $commaPosition), ';base64')) {
+            $base64data = substr($base64data, $commaPosition + 1);
         }
 
         // strict mode filters for non-base64 alphabet characters

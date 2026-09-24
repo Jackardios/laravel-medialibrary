@@ -581,6 +581,17 @@ it('can add data uri prefixed base64 encoded file to the medialibrary', function
     $this->assertFileExists($this->getMediaDirectory($media->id.'/'.$media->file_name));
 });
 
+it('can add a base64 encoded file from a data uri with parameters', function () {
+    $data = base64_encode(file_get_contents($this->getTestJpg()));
+
+    $media = $this->testModel
+        ->addMediaFromBase64('data:image/jpeg;name=test.jpg;charset=binary;base64,'.$data)
+        ->toMediaCollection();
+
+    expect($media->mime_type)->toBe('image/jpeg')
+        ->and($media->getPath())->toBeFile();
+});
+
 it('will throw an exception when adding invalid base64 data', function () {
     $testFile = $this->getTestJpg();
     $invalidBase64Data = file_get_contents($testFile);
