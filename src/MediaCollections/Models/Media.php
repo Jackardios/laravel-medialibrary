@@ -18,7 +18,6 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Spatie\MediaLibrary\Conversions\Conversion;
 use Spatie\MediaLibrary\Conversions\ConversionCollection;
 use Spatie\MediaLibrary\Conversions\ImageGenerators\ImageGeneratorFactory;
@@ -33,6 +32,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Concerns\CustomMediaProperties;
 use Spatie\MediaLibrary\MediaCollections\Models\Concerns\HasUuid;
 use Spatie\MediaLibrary\MediaCollections\Models\Concerns\IsSorted;
 use Spatie\MediaLibrary\ResponsiveImages\RegisteredResponsiveImages;
+use Spatie\MediaLibrary\Support\ContentDisposition;
 use Spatie\MediaLibrary\Support\File;
 use Spatie\MediaLibrary\Support\MediaLibraryPro;
 use Spatie\MediaLibrary\Support\TemporaryDirectory;
@@ -485,7 +485,7 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         // A conversion is sent under its own file name and with the mime type of its format.
         $conversionPath = $conversion !== '' ? $this->getPathRelativeToRoot($conversion) : null;
 
-        $filename = str_replace('"', '\'', Str::ascii($conversionPath !== null ? basename($conversionPath) : $this->getDownloadFilename()));
+        $filename = $conversionPath !== null ? basename($conversionPath) : $this->getDownloadFilename();
 
         // Open the file before sending the headers, so a missing file fails the response instead
         // of a 200 with a broken body.
@@ -507,7 +507,7 @@ class Media extends Model implements Attachable, Htmlable, Responsable
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
             'Content-Type' => $mimeType,
             'Content-Length' => $size,
-            'Content-Disposition' => $contentDispositionType.'; filename="'.$filename.'"',
+            'Content-Disposition' => ContentDisposition::header($contentDispositionType, $filename),
             'Pragma' => 'public',
         ];
 

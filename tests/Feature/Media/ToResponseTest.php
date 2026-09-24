@@ -61,3 +61,10 @@ test('to response sends a conversion under its own file name and mime type', fun
         ->and($response->headers->get('Content-Disposition'))->toBe('attachment; filename="test-thumb.jpg"')
         ->and((int) $response->headers->get('Content-Length'))->toBe(filesize($media->getPath('thumb')));
 });
+
+test('to response sends a file name that is not ascii along with its ascii form', function () {
+    $media = $this->testModel->addMedia($this->getTestPdf())->preservingOriginal()->usingFileName('café.pdf')->toMediaCollection();
+
+    expect($media->toResponse(request())->headers->get('Content-Disposition'))
+        ->toBe("attachment; filename=\"cafe.pdf\"; filename*=utf-8''caf%C3%A9.pdf");
+});

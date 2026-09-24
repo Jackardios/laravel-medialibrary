@@ -73,7 +73,7 @@ class MediaStream implements Responsable
     public function toResponse($request): StreamedResponse
     {
         $headers = [
-            'Content-Disposition' => "attachment; filename=\"{$this->zipName}\"",
+            'Content-Disposition' => ContentDisposition::header('attachment', $this->zipName),
             'Content-Type' => 'application/octet-stream',
         ];
 

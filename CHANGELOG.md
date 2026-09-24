@@ -18,6 +18,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - The default file name sanitizer also replaces `: * ? " < > |`, strips trailing dots and spaces, and prefixes reserved Windows device names (`CON`, `NUL`, `COM1`, `LPT1`, ...) with `_`.
 - The values of the extra attributes of an image tag (`img(extraAttributes: [...])`, `attributes()`) are escaped.
 - `zip_filename_prefix` can no longer climb out of the zip with `..` (upstream 11.23.1).
+- The file name of a download or zip response is escaped in `Content-Disposition`; a name that is not ascii is also sent in utf-8 (`filename*`).
 - `updateMedia()` throws `MediaCannotBeUpdated` for media that belongs to another model instead of changing it.
 
 ### Changed

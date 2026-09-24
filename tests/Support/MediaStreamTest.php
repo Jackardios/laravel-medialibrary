@@ -257,3 +257,12 @@ it('zips every file with its exact contents', function () {
         ->and($zip->getFromName('small.txt'))->toBe('hello');
     $zip->close();
 });
+
+it('quotes the name of the zip in its response', function (string $zipName, string $contentDisposition) {
+    expect(MediaStream::create($zipName)->toResponse(request())->headers->get('Content-Disposition'))->toBe($contentDisposition);
+})->with([
+    ['my-media.zip', 'attachment; filename="my-media.zip"'],
+    ['my "media".zip', "attachment; filename=\"my 'media'.zip\"; filename*=utf-8''my%20%22media%22.zip"],
+    ['media\\.zip', "attachment; filename=\"media_.zip\"; filename*=utf-8''media%5C.zip"],
+    ['фото.zip', "attachment; filename=\"foto.zip\"; filename*=utf-8''%D1%84%D0%BE%D1%82%D0%BE.zip"],
+]);
