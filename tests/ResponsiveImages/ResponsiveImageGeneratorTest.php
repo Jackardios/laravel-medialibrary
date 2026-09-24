@@ -3,8 +3,11 @@
 use Illuminate\Support\Facades\Event;
 use Spatie\MediaLibrary\Conversions\Conversion;
 use Spatie\MediaLibrary\ResponsiveImages\Events\ResponsiveImagesGeneratedEvent;
+use Spatie\MediaLibrary\ResponsiveImages\ResponsiveImageGenerator;
+use Spatie\MediaLibrary\ResponsiveImages\WidthCalculator\WidthCalculator;
 use Spatie\MediaLibrary\Support\FileRemover\DefaultFileRemover;
 use Spatie\MediaLibrary\Tests\TestSupport\TestCustomPathGenerator;
+use Spatie\MediaLibrary\Tests\TestSupport\WidthCalculators\FixedWidthCalculator;
 
 beforeEach(function () {
     $this->fileName = 'test';
@@ -172,4 +175,19 @@ it('will not delete responsive images of images with similar names saved on the 
     expect(File::exists($this->getTempDirectory("media/some_user/1/custom_conversions/{$this->fileNameWithUnderscore}-small")))->toBeFalse();
     expect(File::exists($this->getTempDirectory("media/some_user/1/custom_conversions/{$this->fileNameWithUnderscore}-medium")))->toBeFalse();
     expect(File::exists($this->getTempDirectory("media/some_user/1/custom_conversions/{$this->fileNameWithUnderscore}-large")))->toBeFalse();
+});
+
+it('records that no responsive images are left when the width calculator returns no widths', function () {
+    config()->set('media-library.responsive_images.use_tiny_placeholders', false);
+
+    $media = $this->testModelWithResponsiveImages->addMedia($this->getTestJpg())->withResponsiveImages()->toMediaCollection();
+    $originalImages = fn () => glob($this->getMediaDirectory("{$media->id}/responsive-images/*media_library_original*"));
+
+    expect($originalImages())->not->toBeEmpty();
+
+    app()->bind(WidthCalculator::class, fn () => new FixedWidthCalculator([]));
+    app(ResponsiveImageGenerator::class)->generateResponsiveImages($media->fresh());
+
+    expect($media->fresh()->responsive_images['media_library_original']['urls'])->toBe([])
+        ->and($originalImages())->toBe([]);
 });

@@ -95,13 +95,18 @@ class ResponsiveImageGenerator
         } catch (Throwable $exception) {
             $newFileNames = $media->responsive_images[$conversionName]['urls'] ?? [];
 
-            // Files with the name of a previous one overwrote it with an identical image.
+            // A new file named like a previous one replaced it and stays: the restored set points to it.
             $this->removeResponsiveImageFiles($media, array_diff($newFileNames, $previousFileNames));
 
             $this->setResponsiveImagesFor($media, $conversionName, $previous);
             $media->save();
 
             throw $exception;
+        }
+
+        // Each new image saves the media, but a set without any image has not been saved yet.
+        if ($media->isDirty('responsive_images')) {
+            $media->save();
         }
 
         $this->removeResponsiveImageFiles(
