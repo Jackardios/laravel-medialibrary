@@ -150,3 +150,8 @@ it('can set extra attributes', function () {
         (string) Media::first()->img()->attributes(['extra' => 'value'])
     );
 });
+
+it('escapes the values of extra attributes', function () {
+    expect((string) Media::first()->img('thumb', ['title' => 'Tom & "Jerry"><script>alert(1)</script>']))
+        ->toBe('<img title="Tom &amp; &quot;Jerry&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;" src="/media/1/conversions/test-thumb.jpg" alt="test">');
+});
