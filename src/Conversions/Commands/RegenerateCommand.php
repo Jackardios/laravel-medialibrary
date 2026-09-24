@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
 use Spatie\MediaLibrary\Conversions\FileManipulator;
@@ -151,7 +152,7 @@ class RegenerateCommand extends Command
             if ($missing === []) {
                 // Nothing to convert (an empty list would mean "every conversion" below).
                 if ($withResponsiveImages) {
-                    $this->fileManipulator->regenerateDerivedFiles($media, [], true, true);
+                    $this->fileManipulator->regenerateDerivedFiles($media, $only, true, true);
                 }
 
                 return;
@@ -162,6 +163,10 @@ class RegenerateCommand extends Command
         }
 
         $this->fileManipulator->createDerivedFiles($media, $only, $onlyMissing, $withResponsiveImages);
+
+        // Laravel runs deferred callbacks after a command only when it succeeds, so the deferred
+        // conversions run here, with their media. Like any deferred callback, a failure is reported.
+        app(DeferredCallbackCollection::class)->invoke();
     }
 
     /**

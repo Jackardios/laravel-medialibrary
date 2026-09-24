@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
@@ -788,4 +789,40 @@ it('recognises existing conversions when the disk root is not a prefix of their 
 
     clearstatcache();
     expect(filemtime($thumb))->toBe($createdAt);
+});
+
+it('performs the deferred conversions of each media before the command ends', function () {
+    // Laravel runs deferred callbacks after a command only when it succeeds: one media that
+    // fails must not keep the deferred conversions of the others from being performed.
+    $media = $this->testModelWithConversionDeferred
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    app(DeferredCallbackCollection::class)->invoke();
+    File::delete($media->getPath('thumb'));
+
+    $this->artisan('media-library:regenerate');
+
+    expect($media->getPath('thumb'))->toBeFile()
+        ->and(app(DeferredCallbackCollection::class)->count())->toBe(0);
+});
+
+it('regenerates only the responsive images of the named conversions when trusting the database finds no missing conversion', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->withResponsiveImages()
+        ->toMediaCollection('images');
+
+    File::delete($media->getPath('keep_original_format'));
+    $media->markAsConversionNotGenerated('keep_original_format');
+    $media->save();
+
+    $this->artisan('media-library:regenerate', [
+        '--only' => ['thumb'],
+        '--only-missing' => true,
+        '--trust-database' => true,
+        '--with-responsive-images' => true,
+    ]);
+
+    expect($media->getPath('keep_original_format'))->not->toBeFile();
 });
