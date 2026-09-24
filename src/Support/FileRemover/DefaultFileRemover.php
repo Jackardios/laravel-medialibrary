@@ -101,13 +101,14 @@ class DefaultFileRemover implements FileRemover
                         ->map(static fn (string $imagePath) => $mediaRoot.$imagePath)
                         ->toArray();
 
-                    $imagePaths = array_merge(
+                    // The registered images of the original are among the files named after it.
+                    $imagePaths = array_unique(array_merge(
                         array_intersect($allFilePaths, $responsiveImagesFilePaths),
                         array_filter(
                             $allFilePaths,
                             static fn (string $path) => Str::startsWith($path, $mediaRoot.$mediaFilename.'___media_library_original_'),
                         ),
-                    );
+                    ));
 
                     foreach ($imagePaths as $imagePath) {
                         $this->filesystem->disk($disk)->delete($imagePath);

@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Filesystem\FilesystemAdapter;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
@@ -310,3 +312,29 @@ it('removes the files of a media stored without responsive images', function (st
     expect($media->getPath())->not->toBeFile()
         ->and($media->getPath('thumb'))->not->toBeFile();
 })->with([DefaultFileRemover::class, FileBaseFileRemover::class]);
+
+class DiskRecordingDeletes extends FilesystemAdapter
+{
+    public static array $deleted = [];
+
+    public function delete($paths)
+    {
+        array_push(static::$deleted, ...Arr::wrap($paths));
+
+        return parent::delete($paths);
+    }
+}
+
+it('removes each file of a media once', function () {
+    $media = $this->testModelWithResponsiveImages->addMedia($this->getTestJpg())->withResponsiveImages()->toMediaCollection()->fresh();
+
+    $disk = Storage::disk('public');
+    Storage::set('public', new DiskRecordingDeletes($disk->getDriver(), $disk->getAdapter(), $disk->getConfig()));
+    DiskRecordingDeletes::$deleted = [];
+
+    $media->delete();
+
+    expect(DiskRecordingDeletes::$deleted)->not->toBeEmpty()
+        ->and(array_unique(DiskRecordingDeletes::$deleted))->toBe(DiskRecordingDeletes::$deleted)
+        ->and($this->getMediaDirectory($media->id))->not->toBeDirectory();
+});
