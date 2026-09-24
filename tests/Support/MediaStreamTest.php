@@ -182,3 +182,61 @@ test('media with zip file prefix property saved with correct prefix', function (
 
     $this->assertFileExistsInZipRecognizeFolder($temporaryDirectory->path('response.zip'), 'just_a_string_prefix test.jpg');
 });
+
+function zipEntryNames(MediaStream $mediaStream): array
+{
+    ob_start();
+    @$mediaStream->toResponse(request())->sendContent();
+    $content = ob_get_clean();
+
+    $path = (new TemporaryDirectory)->create()->path('response.zip');
+    file_put_contents($path, $content);
+
+    $zip = new ZipArchive;
+    $zip->open($path);
+
+    $names = [];
+    for ($index = 0; $index < $zip->numFiles; $index++) {
+        $names[] = $zip->getNameIndex($index);
+    }
+
+    $zip->close();
+
+    return $names;
+}
+
+it('numbers duplicate file names without an extension', function () {
+    $first = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->usingFileName('README')->toMediaCollection();
+    $second = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->usingFileName('README')->toMediaCollection();
+
+    expect(zipEntryNames(MediaStream::create('my-media.zip')->addMedia($first, $second)))->toBe(['README', 'README (1)']);
+});
+
+class MediaWithDownloadName extends Media
+{
+    protected $table = 'media';
+
+    public function getDownloadFilename(): string
+    {
+        return $this->getCustomProperty('download_name');
+    }
+}
+
+it('gives every file in the zip a unique name', function () {
+    $media = collect(['a.jpg', 'a.jpg', 'a (1).jpg'])->map(function (string $downloadName) {
+        $media = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()
+            ->withCustomProperties(['download_name' => $downloadName])
+            ->toMediaCollection();
+
+        return MediaWithDownloadName::find($media->id);
+    });
+
+    expect(zipEntryNames(MediaStream::create('my-media.zip')->addMedia($media)))->toBe(['a.jpg', 'a (1).jpg', 'a (1) (1).jpg']);
+});
+
+it('names the files the same way every time the zip is streamed', function () {
+    $mediaStream = MediaStream::create('my-media.zip')->addMedia(Media::all());
+
+    expect(zipEntryNames($mediaStream))->toBe(['test.jpg', 'test (1).jpg', 'test (2).jpg'])
+        ->and(zipEntryNames($mediaStream))->toBe(['test.jpg', 'test (1).jpg', 'test (2).jpg']);
+});

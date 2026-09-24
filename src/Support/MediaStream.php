@@ -12,7 +12,8 @@ class MediaStream implements Responsable
 {
     protected Collection $mediaItems;
 
-    private array $nameCounters = [];
+    /** @var array<string, true> The names already used in the zip being built. */
+    private array $zipFileNames = [];
 
     protected array $zipOptions;
 
@@ -103,6 +104,7 @@ class MediaStream implements Responsable
 
     protected function getZipStreamContents(): Collection
     {
+        $this->zipFileNames = [];
 
         return $this->mediaItems->map(fn (Media $media, $mediaItemIndex) => [
             'fileNameInZip' => $this->getZipFileNamePrefix($this->mediaItems, $mediaItemIndex).$this->getFileNameWithSuffix($this->mediaItems, $mediaItemIndex),
@@ -115,19 +117,23 @@ class MediaStream implements Responsable
         $fileName = $mediaItems[$currentIndex]->getDownloadFilename();
 
         $prefix = $this->getZipFileNamePrefix($mediaItems, $currentIndex);
-        $key = $prefix.$fileName;
-
-        $count = ($this->nameCounters[$key] ?? 0);
-        $this->nameCounters[$key] = $count + 1;
-
-        if ($count === 0) {
-            return $fileName;
-        }
 
         $extension = pathinfo($fileName, PATHINFO_EXTENSION);
         $fileNameWithoutExtension = pathinfo($fileName, PATHINFO_FILENAME);
 
-        return "{$fileNameWithoutExtension} ({$count}).{$extension}";
+        // Number a duplicate until its name is free, which it may not be when another file
+        // is already named like a numbered duplicate.
+        $uniqueFileName = $fileName;
+
+        for ($count = 1; isset($this->zipFileNames[$prefix.$uniqueFileName]); $count++) {
+            $uniqueFileName = $extension === ''
+                ? "{$fileNameWithoutExtension} ({$count})"
+                : "{$fileNameWithoutExtension} ({$count}).{$extension}";
+        }
+
+        $this->zipFileNames[$prefix.$uniqueFileName] = true;
+
+        return $uniqueFileName;
     }
 
     protected function getZipFileNamePrefix(Collection $mediaItems, int $currentIndex): string
