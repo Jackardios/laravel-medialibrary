@@ -162,6 +162,29 @@ test('path traversal sequences in the zip file prefix property are stripped', fu
     $this->assertFileExistsInZipRecognizeFolder($temporaryDirectory->path('response.zip'), 'etc/cron.d/test.jpg');
 });
 
+it('keeps the files of a zip file prefix inside the zip', function (string $prefix, string $entryName) {
+    $media = $this->testModel
+        ->addMedia($this->getTestJpg())
+        ->preservingOriginal()
+        ->withCustomProperties(['zip_filename_prefix' => $prefix])
+        ->toMediaCollection();
+
+    expect(zipEntryNames(MediaStream::create('my-media.zip')->addMedia($media)))->toBe([$entryName]);
+})->with([
+    'windows separators' => ['..\\..\\evil\\', 'evil/test.jpg'],
+    'absolute path' => ['/etc/cron.d/', 'etc/cron.d/test.jpg'],
+]);
+
+it('gives files a unique name when their zip file prefixes only differ by a leading slash', function () {
+    $media = collect(['/folder/', 'folder/'])->map(fn (string $prefix) => $this->testModel
+        ->addMedia($this->getTestJpg())
+        ->preservingOriginal()
+        ->withCustomProperties(['zip_filename_prefix' => $prefix])
+        ->toMediaCollection());
+
+    expect(zipEntryNames(MediaStream::create('my-media.zip')->addMedia($media)))->toBe(['folder/test.jpg', 'folder/test (1).jpg']);
+});
+
 test('media with zip file prefix property saved with correct prefix', function () {
     $this->testModel
         ->addMedia($this->getTestJpg())
