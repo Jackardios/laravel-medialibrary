@@ -66,7 +66,8 @@ trait InteractsWithMedia
         });
 
         // Media added before the model existed, with the options of the file adder that added it.
-        static::created(function (HasMedia $model) {
+        // Not typed: every model using the trait gets it, also one that does not implement HasMedia.
+        static::created(function ($model) {
             $model->processUnattachedMedia(function (Media $media, FileAdder $fileAdder) use ($model) {
                 $fileAdder->attachToCreatedModel($model, $media);
             });

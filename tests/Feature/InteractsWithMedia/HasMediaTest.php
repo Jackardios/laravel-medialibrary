@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Database\Eloquent\Model;
+use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 it('returns false for an empty collection', function () {
@@ -73,4 +75,19 @@ it('returns true using a filter callback', function () {
 
     expect($this->testModel->hasMedia('images', fn (Media $media) => isset($media->custom_properties['filter1'])))->toBeTrue();
     expect($this->testModel->hasMedia('images', fn (Media $media) => isset($media->custom_properties['filter3'])))->toBeFalse();
+});
+
+class ModelUsingTheTraitOnly extends Model
+{
+    use InteractsWithMedia;
+
+    protected $table = 'test_models';
+
+    protected $guarded = [];
+
+    public $timestamps = false;
+}
+
+it('creates a model that uses the trait without implementing the interface', function () {
+    expect(ModelUsingTheTraitOnly::create(['name' => 'test'])->exists)->toBeTrue();
 });
