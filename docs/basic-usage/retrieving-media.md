@@ -76,6 +76,8 @@ $yourModel
    ->toMediaCollection();
 ```
 
+By default the file name is sanitized so it is valid on every platform: `#`, `/`, `\`, spaces and the characters Windows does not allow (`: * ? " < > |`) are replaced by `-`, trailing dots and spaces are removed, and Windows device names such as `CON` or `LPT1` get a `_` prefix (`CON.txt` becomes `_CON.txt`).
+
 You can sanitize the filename using a callable:
 
 ```php
@@ -87,7 +89,7 @@ $yourModel
    ->toMediaCollection();
 ```
 
-**Security note.** By default, Media Library rejects uploads whose file name contains a potentially executable extension such as `.php` or `.phtml`. The check looks at every extension segment in the name, so `malicious.php.jpg` is blocked too. Passing your own callable to `sanitizingFileName` fully replaces the default sanitizer (including this protection), so make sure your callable does not let dangerous file names through.
+**Security note.** By default, Media Library rejects uploads whose file name contains a potentially executable extension such as `.php` or `.phtml`. The check looks at every extension segment in the name, so `malicious.php.jpg` is blocked too. Files that configure PHP or the web server for their directory (`.htaccess`, `.user.ini`, `web.config`) are rejected as well. Passing your own callable to `sanitizingFileName` fully replaces the default sanitizer (including this protection), so make sure your callable does not let dangerous file names through.
 
 The blocked extensions can be configured (and an opt-in allowlist enabled) in `config/media-library.php`:
 

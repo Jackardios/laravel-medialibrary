@@ -532,7 +532,20 @@ class FileAdder
     {
         $sanitizedFileName = preg_replace('#\p{C}+#u', '', $fileName);
 
-        $sanitizedFileName = str_replace(['#', '/', '\\', ' '], '-', $sanitizedFileName);
+        // Windows does not allow a name to end with a dot or a space.
+        $sanitizedFileName = rtrim($sanitizedFileName, '. ');
+
+        // Characters that separate paths, or are not allowed in file names on Windows.
+        $sanitizedFileName = str_replace(['#', '/', '\\', ' ', ':', '*', '?', '"', '<', '>', '|'], '-', $sanitizedFileName);
+
+        // Windows reserves device names, whatever the extension (`CON.txt`, `lpt1.tar.gz`).
+        if (preg_match('/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i', $sanitizedFileName)) {
+            $sanitizedFileName = "_{$sanitizedFileName}";
+        }
+
+        if ($sanitizedFileName === '') {
+            $sanitizedFileName = 'file';
+        }
 
         $this->guardAgainstDisallowedFileName($fileName, $sanitizedFileName);
 

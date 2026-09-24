@@ -25,6 +25,20 @@ it('sanitizes filenames correctly', function () {
         ->toEqual('Scan-9.14.2022-7.23.28.pdf');
 });
 
+it('sanitizes file names that are not valid on windows', function (string $fileName, string $sanitizedFileName) {
+    expect(app(FileAdder::class)->defaultSanitizer($fileName))->toBe($sanitizedFileName);
+})->with([
+    'reserved characters' => ['a:b*c?d"e<f>g|h.jpg', 'a-b-c-d-e-f-g-h.jpg'],
+    'trailing dots' => ['report.pdf..', 'report.pdf'],
+    'trailing space and dot' => ['report.pdf. ', 'report.pdf'],
+    'device name' => ['CON.txt', '_CON.txt'],
+    'lowercase device name with several extensions' => ['lpt1.tar.gz', '_lpt1.tar.gz'],
+    'device name without extension' => ['nul', '_nul'],
+    'numbered port' => ['com9.jpg', '_com9.jpg'],
+    'name that only starts like a device name' => ['console.jpg', 'console.jpg'],
+    'only dots' => ['...', 'file'],
+]);
+
 it('will throw an exception if the sanitized file name is a php file name', function () {
     $adder = app(FileAdder::class);
 
