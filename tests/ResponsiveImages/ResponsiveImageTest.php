@@ -51,8 +51,8 @@ test('a media instance can generate the contents of scrset', function () {
     expect($media->getSrcset('thumb'))->toContain('data:image/svg+xml;base64,');
 });
 
-test('a media instance can generate the contents of scrset with versioned urls', function () {
-    config()->set('media-library.version_urls', true);
+test('a media instance can generate the contents of scrset with versioned urls', function (mixed $versionUrls) {
+    config()->set('media-library.version_urls', $versionUrls);
 
     $this->travelTo(Carbon::create(2023, 3, 24, 14));
 
@@ -78,7 +78,7 @@ test('a media instance can generate the contents of scrset with versioned urls',
         );
         expect($media->getSrcset('thumb'))->toContain('data:image/svg+xml;base64,');
     });
-});
+})->with([true, 1]);
 
 test('a responsive image can return some properties', function () {
     $this->testModel
