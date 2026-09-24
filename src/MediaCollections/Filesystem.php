@@ -292,23 +292,55 @@ class Filesystem
         $oldPath = $factory->getPath($oldMedia);
         $newPath = $factory->getPath($media);
 
-        if ($oldPath === $newPath) {
-            return;
+        if ($oldPath !== $newPath) {
+            $this->moveDirectory($media->disk, $oldPath, $newPath);
         }
 
-        // If the media is stored on S3, we need to move all files in the directory
-        if ($media->getDiskDriverName() === 's3') {
-            $allFiles = $this->filesystem->disk($media->disk)->allFiles($oldPath);
+        $separateConversionsDisk = $media->conversions_disk !== $media->disk;
 
-            foreach ($allFiles as $file) {
-                $newFilePath = str_replace($oldPath, $newPath, $file);
-                $this->filesystem->disk($media->disk)->move($file, $newFilePath);
+        // Conversions and responsive images live on the conversions disk. Unless they were
+        // already moved along with the media directory, move them separately.
+        foreach ([
+            [$factory->getPathForConversions($oldMedia), $factory->getPathForConversions($media)],
+            [$factory->getPathForResponsiveImages($oldMedia), $factory->getPathForResponsiveImages($media)],
+        ] as [$oldDerivedPath, $newDerivedPath]) {
+            if ($oldDerivedPath === $newDerivedPath) {
+                continue;
+            }
+
+            if (! $separateConversionsDisk && $oldPath !== $newPath && str_starts_with($oldDerivedPath, $oldPath)) {
+                continue;
+            }
+
+            $this->moveDirectory($media->conversions_disk, $oldDerivedPath, $newDerivedPath);
+        }
+
+        // Don't leave the emptied media directory behind on the conversions disk.
+        if ($separateConversionsDisk && $oldPath !== $newPath) {
+            $conversionsDisk = $this->filesystem->disk($media->conversions_disk);
+
+            if ($conversionsDisk->directoryExists($oldPath) && $conversionsDisk->allFiles($oldPath) === []) {
+                $conversionsDisk->deleteDirectory($oldPath);
+            }
+        }
+    }
+
+    protected function moveDirectory(string $diskName, string $oldPath, string $newPath): void
+    {
+        $disk = $this->filesystem->disk($diskName);
+
+        // Object storage has no directories to rename: move every file.
+        if (config("filesystems.disks.{$diskName}.driver") === 's3') {
+            foreach ($disk->allFiles($oldPath) as $file) {
+                $disk->move($file, $newPath.Str::after($file, $oldPath));
             }
 
             return;
         }
 
-        $this->filesystem->disk($media->disk)->move($oldPath, $newPath);
+        if ($disk->directoryExists($oldPath)) {
+            $disk->move($oldPath, $newPath);
+        }
     }
 
     protected function renameMediaFile(Media $media): void

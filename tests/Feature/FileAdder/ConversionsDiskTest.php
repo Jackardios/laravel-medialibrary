@@ -5,6 +5,7 @@ use Spatie\MediaLibrary\Conversions\FileManipulator;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Support\FileRemover\DefaultFileRemover;
+use Spatie\MediaLibrary\Tests\TestSupport\TestUuidPathGenerator;
 
 it('can save conversions on a separate disk', function () {
     $media = $this->testModelWithConversion
@@ -193,4 +194,24 @@ it('builds the srcset of the original on the conversions disk', function () {
         expect($url)->toStartWith("/media2/{$media->id}/responsive-images/")
             ->and($this->getTempDirectory('media2/'.Str::after($url, '/media2/')))->toBeFile();
     }
+});
+
+it('moves conversions stored on a separate disk when moving media on update', function () {
+    config()->set('media-library.moves_media_on_update', true);
+    config()->set('media-library.path_generator', TestUuidPathGenerator::class);
+
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestJpg())
+        ->storingConversionsOnDisk('secondMediaDisk')
+        ->toMediaCollection();
+
+    $oldConversionPath = $media->getPath('thumb');
+    expect($oldConversionPath)->toBeFile();
+
+    $media->update(['uuid' => (string) Str::uuid()]);
+
+    expect($media->getPath())->toBeFile()
+        ->and($media->getPath('thumb'))->toBeFile()
+        ->and($media->getPath('thumb'))->not->toBe($oldConversionPath)
+        ->and($oldConversionPath)->not->toBeFile();
 });
