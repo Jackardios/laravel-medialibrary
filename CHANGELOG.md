@@ -52,7 +52,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - Responsive images that end up with no widths are recorded as such before the previous files are removed.
 - `media-library:regenerate` performs deferred conversions with their media, also when another media fails, and `--only` limits the responsive images regenerated with `--trust-database`.
 - The `HttpFacadeDownloader` refuses a response that is not successful (such as a 300 without a location). The `DefaultDownloader` sends the credentials of a url (`user:password@host`).
-- Media stored with `responsive_images` set to `null` can be deleted.
+- Media stored with `responsive_images` set to `null` can be deleted and regenerated with `--with-responsive-images`.
 - The responsive images of a media are versioned whenever `version_urls` is truthy.
 - Regenerating after a manipulation change restores the model event dispatcher when a conversion fails (Octane, queue workers).
 - A conversion without manipulations no longer takes away the original that later conversions and responsive images use.
