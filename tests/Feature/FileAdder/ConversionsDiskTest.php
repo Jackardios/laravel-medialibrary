@@ -1,6 +1,8 @@
 <?php
 
+use Spatie\MediaLibrary\Conversions\FileManipulator;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Support\FileRemover\DefaultFileRemover;
 
 it('can save conversions on a separate disk', function () {
@@ -150,4 +152,28 @@ test('DefaultFileRemover::removeResponsiveImages deletes responsive images store
     app(DefaultFileRemover::class)->removeResponsiveImages($media, 'thumb');
 
     $this->assertFileDoesNotExist($responsiveImagePath);
+});
+
+it('uses the original disk for conversions of media without a conversions disk', function () {
+    // Rows created outside the FileAdder can carry a null conversions_disk. Point the application's
+    // default disk elsewhere, so that falling through to Storage::disk(null) is observable.
+    config()->set('filesystems.default', 'secondMediaDisk');
+
+    $media = $this->testModelWithConversion->addMedia($this->getTestJpg())->toMediaCollection();
+    Media::query()->whereKey($media->id)->update(['conversions_disk' => null]);
+    $media = Media::find($media->id);
+
+    expect($media->conversions_disk)->toBe('public');
+
+    unlink($media->getPath('thumb'));
+
+    app(FileManipulator::class)->regenerateDerivedFiles($media);
+
+    expect($media->getPath('thumb'))->toBe($this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg"))
+        ->and($media->getPath('thumb'))->toBeFile()
+        ->and($this->getTempDirectory("media2/{$media->id}"))->not->toBeDirectory();
+
+    $media->delete();
+
+    expect($this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg"))->not->toBeFile();
 });

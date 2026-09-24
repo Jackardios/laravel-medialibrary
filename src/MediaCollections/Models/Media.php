@@ -261,6 +261,15 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         return Attribute::get(fn () => File::getHumanReadableSize($this->size));
     }
 
+    /**
+     * Rows created outside the FileAdder can lack a conversions disk: their conversions and
+     * responsive images live on the original's disk, not on the application's default disk.
+     */
+    protected function conversionsDisk(): Attribute
+    {
+        return Attribute::get(fn (?string $value) => $value ?: $this->disk);
+    }
+
     public function getDiskDriverName(): string
     {
         return strtolower(config("filesystems.disks.{$this->disk}.driver"));
@@ -268,9 +277,7 @@ class Media extends Model implements Attachable, Htmlable, Responsable
 
     public function getConversionsDiskDriverName(): string
     {
-        $diskName = $this->conversions_disk ?? $this->disk;
-
-        return strtolower(config("filesystems.disks.{$diskName}.driver"));
+        return strtolower(config("filesystems.disks.{$this->conversions_disk}.driver"));
     }
 
     public function hasCustomProperty(string $propertyName): bool

@@ -322,7 +322,7 @@ class FileManipulator
      */
     protected function conversionFileExists(Media $media, string $conversionName): bool
     {
-        $conversionsDisk = $media->conversions_disk ?: $media->disk;
+        $conversionsDisk = $media->conversions_disk;
         $relativePath = $media->getPath($conversionName);
 
         if ($rootPath = config("filesystems.disks.{$conversionsDisk}.root")) {

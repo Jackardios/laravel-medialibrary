@@ -61,12 +61,9 @@ abstract class BaseUrlGenerator implements UrlGenerator
 
     protected function getDiskName(): string
     {
-        // A null `conversions_disk` (legacy/non-FileAdder rows) must fall back to the
-        // originals `disk`, not Storage::disk(null) → the application default disk.
-        // Mirrors Media::getConversionsDiskDriverName() and Media::mailAttachment().
         return $this->conversion === null
             ? $this->media->disk
-            : ($this->media->conversions_disk ?? $this->media->disk);
+            : $this->media->conversions_disk;
     }
 
     protected function getDisk(): Filesystem
