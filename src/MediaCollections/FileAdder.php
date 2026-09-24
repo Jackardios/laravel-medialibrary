@@ -23,6 +23,7 @@ use Spatie\MediaLibrary\Support\RemoteFile;
 use Spatie\MediaLibraryPro\Models\TemporaryUpload;
 use Symfony\Component\HttpFoundation\File\File as SymfonyFile;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Throwable;
 
 /**
  * @template TMedia of \Spatie\MediaLibrary\MediaCollections\Models\Media = \Spatie\MediaLibrary\MediaCollections\Models\Media
@@ -34,6 +35,9 @@ class FileAdder
     protected ?HasMedia $subject = null;
 
     protected bool $preserveOriginal = false;
+
+    /** Whether the file is a temporary copy the media library made, e.g. of a downloaded url. */
+    protected bool $isTemporaryFile = false;
 
     /** @var UploadedFile|RemoteFile|SymfonyFile|string */
     protected $file;
@@ -137,6 +141,28 @@ class FileAdder
         $this->preserveOriginal = $preserveOriginal;
 
         return $this;
+    }
+
+    /**
+     * Mark the file as a temporary copy the media library made, which is removed once it has
+     * been added or rejected.
+     *
+     * @internal
+     *
+     * @return $this
+     */
+    public function withTemporaryFile(): self
+    {
+        $this->isTemporaryFile = true;
+
+        return $this;
+    }
+
+    protected function removeTemporaryFile(): void
+    {
+        if ($this->isTemporaryFile && is_file($this->pathToFile)) {
+            unlink($this->pathToFile);
+        }
     }
 
     /**
@@ -354,67 +380,73 @@ class FileAdder
      */
     public function toMediaCollection(string $collectionName = 'default', string $diskName = ''): Media
     {
-        $sanitizedFileName = ($this->fileNameSanitizer)($this->fileName);
-        $fileName = app(config('media-library.file_namer'))->originalFileName($sanitizedFileName);
-        $this->fileName = $this->appendExtension($fileName, pathinfo($sanitizedFileName, PATHINFO_EXTENSION));
+        try {
+            $sanitizedFileName = ($this->fileNameSanitizer)($this->fileName);
+            $fileName = app(config('media-library.file_namer'))->originalFileName($sanitizedFileName);
+            $this->fileName = $this->appendExtension($fileName, pathinfo($sanitizedFileName, PATHINFO_EXTENSION));
 
-        if ($this->file instanceof RemoteFile) {
-            return $this->toMediaCollectionFromRemote($collectionName, $diskName);
+            if ($this->file instanceof RemoteFile) {
+                return $this->toMediaCollectionFromRemote($collectionName, $diskName);
+            }
+
+            if ($this->isInstanceOfTemporaryUploadModel($this->file)) {
+                return $this->toMediaCollectionFromTemporaryUpload($collectionName, $diskName, $this->fileName);
+            }
+
+            if (! is_file($this->pathToFile)) {
+                throw FileDoesNotExist::create($this->pathToFile);
+            }
+
+            $this->fileSize ??= filesize($this->pathToFile);
+
+            if ($this->fileSize > config('media-library.max_file_size')) {
+                throw FileIsTooBig::create($this->pathToFile);
+            }
+
+            $mediaClass = $this->subject?->getMediaModel() ?? config('media-library.media_model');
+            /** @var Media $media */
+            $media = new $mediaClass;
+
+            $media->name = $this->mediaName;
+
+            $media->file_name = $this->fileName;
+
+            $media->disk = $this->determineDiskName($diskName, $collectionName);
+            $this->ensureDiskExists($media->disk);
+
+            $media->conversions_disk = $this->determineConversionsDiskName($media->disk, $collectionName);
+            $this->ensureDiskExists($media->conversions_disk);
+
+            $media->collection_name = $collectionName;
+
+            $media->mime_type = File::getMimeType($this->pathToFile);
+            $media->size = $this->fileSize;
+
+            if (! is_null($this->order)) {
+                $media->order_column = $this->order;
+            }
+
+            $media->custom_properties = $this->customProperties;
+
+            $media->generated_conversions = [];
+            $media->responsive_images = [];
+
+            $media->manipulations = $this->manipulations;
+
+            if (filled($this->customHeaders)) {
+                $media->setCustomHeaders($this->customHeaders);
+            }
+
+            $media->fill($this->properties);
+
+            $this->attachMedia($media);
+
+            return $media;
+        } catch (Throwable $exception) {
+            $this->removeTemporaryFile();
+
+            throw $exception;
         }
-
-        if ($this->isInstanceOfTemporaryUploadModel($this->file)) {
-            return $this->toMediaCollectionFromTemporaryUpload($collectionName, $diskName, $this->fileName);
-        }
-
-        if (! is_file($this->pathToFile)) {
-            throw FileDoesNotExist::create($this->pathToFile);
-        }
-
-        $this->fileSize ??= filesize($this->pathToFile);
-
-        if ($this->fileSize > config('media-library.max_file_size')) {
-            throw FileIsTooBig::create($this->pathToFile);
-        }
-
-        $mediaClass = $this->subject?->getMediaModel() ?? config('media-library.media_model');
-        /** @var Media $media */
-        $media = new $mediaClass;
-
-        $media->name = $this->mediaName;
-
-        $media->file_name = $this->fileName;
-
-        $media->disk = $this->determineDiskName($diskName, $collectionName);
-        $this->ensureDiskExists($media->disk);
-
-        $media->conversions_disk = $this->determineConversionsDiskName($media->disk, $collectionName);
-        $this->ensureDiskExists($media->conversions_disk);
-
-        $media->collection_name = $collectionName;
-
-        $media->mime_type = File::getMimeType($this->pathToFile);
-        $media->size = $this->fileSize;
-
-        if (! is_null($this->order)) {
-            $media->order_column = $this->order;
-        }
-
-        $media->custom_properties = $this->customProperties;
-
-        $media->generated_conversions = [];
-        $media->responsive_images = [];
-
-        $media->manipulations = $this->manipulations;
-
-        if (filled($this->customHeaders)) {
-            $media->setCustomHeaders($this->customHeaders);
-        }
-
-        $media->fill($this->properties);
-
-        $this->attachMedia($media);
-
-        return $media;
     }
 
     /**
@@ -594,68 +626,72 @@ class FileAdder
 
     protected function processMediaItem(HasMedia $model, Media $media, self $fileAdder): void
     {
-        $this->guardAgainstDisallowedFileAdditions($media);
+        try {
+            $this->guardAgainstDisallowedFileAdditions($media);
 
-        $this->checkGenerateResponsiveImages($media);
+            $this->checkGenerateResponsiveImages($media);
 
-        if (! $media->getConnectionName()) {
-            $media->setConnection($model->getConnectionName());
-        }
+            if (! $media->getConnectionName()) {
+                $media->setConnection($model->getConnectionName());
+            }
 
-        $model->media()->save($media);
+            $model->media()->save($media);
 
-        if ($fileAdder->file instanceof RemoteFile) {
-            $addedMediaSuccessfully = $this->filesystem->addRemote($fileAdder->file, $media, $fileAdder->fileName);
-        } else {
-            $addedMediaSuccessfully = $this->filesystem->add($fileAdder->pathToFile, $media, $fileAdder->fileName);
-        }
-
-        if (! $addedMediaSuccessfully) {
-            $media->forceDelete();
-
-            throw DiskCannotBeAccessed::create($media->disk);
-        }
-
-        if (! $fileAdder->preserveOriginal) {
             if ($fileAdder->file instanceof RemoteFile) {
-                Storage::disk($fileAdder->file->getDisk())->delete($fileAdder->file->getKey());
+                $addedMediaSuccessfully = $this->filesystem->addRemote($fileAdder->file, $media, $fileAdder->fileName);
             } else {
-                if (file_exists($fileAdder->pathToFile)) {
-                    unlink($fileAdder->pathToFile);
+                $addedMediaSuccessfully = $this->filesystem->add($fileAdder->pathToFile, $media, $fileAdder->fileName);
+            }
+
+            if (! $addedMediaSuccessfully) {
+                $media->forceDelete();
+
+                throw DiskCannotBeAccessed::create($media->disk);
+            }
+
+            if (! $fileAdder->preserveOriginal) {
+                if ($fileAdder->file instanceof RemoteFile) {
+                    Storage::disk($fileAdder->file->getDisk())->delete($fileAdder->file->getKey());
+                } else {
+                    if (file_exists($fileAdder->pathToFile)) {
+                        unlink($fileAdder->pathToFile);
+                    }
                 }
             }
-        }
 
-        if ($this->generateResponsiveImages && (new ImageGenerator)->canConvert($media)) {
-            $generateResponsiveImagesJobClass = config('media-library.jobs.generate_responsive_images', GenerateResponsiveImagesJob::class);
+            if ($this->generateResponsiveImages && (new ImageGenerator)->canConvert($media)) {
+                $generateResponsiveImagesJobClass = config('media-library.jobs.generate_responsive_images', GenerateResponsiveImagesJob::class);
 
-            $job = new $generateResponsiveImagesJobClass($media);
+                $job = new $generateResponsiveImagesJobClass($media);
 
-            if ($customConnection = config('media-library.queue_connection_name')) {
-                $job->onConnection($customConnection);
+                if ($customConnection = config('media-library.queue_connection_name')) {
+                    $job->onConnection($customConnection);
+                }
+
+                if ($customQueue = ($this->onQueue ?? config('media-library.queue_name'))) {
+                    $job->onQueue($customQueue);
+                }
+
+                dispatch($job);
             }
 
-            if ($customQueue = ($this->onQueue ?? config('media-library.queue_name'))) {
-                $job->onQueue($customQueue);
+            if ($collectionSizeLimit = optional($this->getMediaCollection($media->collection_name))->collectionSizeLimit) {
+                /** @var HasMedia */
+                $subject = $this->subject->fresh();
+                $collectionMedia = $subject->getMedia($media->collection_name);
+
+                if ($collectionMedia->count() > $collectionSizeLimit) {
+                    $mediaToKeep = $collectionMedia
+                        ->reject(fn (Media $collectionItem) => $collectionItem->is($media))
+                        ->sortByDesc($media->getKeyName())
+                        ->take($collectionSizeLimit - 1)
+                        ->push($media);
+
+                    $model->clearMediaCollectionExcept($media->collection_name, $mediaToKeep);
+                }
             }
-
-            dispatch($job);
-        }
-
-        if ($collectionSizeLimit = optional($this->getMediaCollection($media->collection_name))->collectionSizeLimit) {
-            /** @var HasMedia */
-            $subject = $this->subject->fresh();
-            $collectionMedia = $subject->getMedia($media->collection_name);
-
-            if ($collectionMedia->count() > $collectionSizeLimit) {
-                $mediaToKeep = $collectionMedia
-                    ->reject(fn (Media $collectionItem) => $collectionItem->is($media))
-                    ->sortByDesc($media->getKeyName())
-                    ->take($collectionSizeLimit - 1)
-                    ->push($media);
-
-                $model->clearMediaCollectionExcept($media->collection_name, $mediaToKeep);
-            }
+        } finally {
+            $fileAdder->removeTemporaryFile();
         }
     }
 

@@ -2,6 +2,7 @@
 
 namespace Spatie\MediaLibrary;
 
+use Closure;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -28,6 +29,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Support\MediaLibraryPro;
 use Spatie\MediaLibraryPro\PendingMediaLibraryRequestHandler;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Throwable;
 
 /**
  * @template TMedia of \Spatie\MediaLibrary\MediaCollections\Models\Media = \Spatie\MediaLibrary\MediaCollections\Models\Media
@@ -157,23 +159,48 @@ trait InteractsWithMedia
 
         $downloader = config('media-library.media_downloader', DefaultDownloader::class);
         $temporaryFile = (new $downloader)->getTempFile($url);
-        $this->guardAgainstInvalidMimeType($temporaryFile, $allowedMimeTypes);
 
-        $filename = basename(urldecode((string) parse_url($url, PHP_URL_PATH)));
+        return $this->addMediaFromTemporaryFile($temporaryFile, $allowedMimeTypes, function (FileAdder $fileAdder) use ($url, $temporaryFile) {
+            $filename = basename(urldecode((string) parse_url($url, PHP_URL_PATH)));
 
-        if ($filename === '') {
-            $filename = 'file';
+            if ($filename === '') {
+                $filename = 'file';
+            }
+
+            if (! Str::contains($filename, '.')) {
+                $mediaExtension = explode('/', mime_content_type($temporaryFile));
+                $filename = "{$filename}.{$mediaExtension[1]}";
+            }
+
+            return $fileAdder
+                ->usingName(pathinfo($filename, PATHINFO_FILENAME))
+                ->usingFileName($filename);
+        });
+    }
+
+    /**
+     * Add a temporary file the media library made. It is removed once it has been added,
+     * or right away when it is rejected.
+     *
+     * @param  array<int, array|string>  $allowedMimeTypes
+     * @param  null|Closure(FileAdder<TMedia>): FileAdder<TMedia>  $configure
+     * @return FileAdder<TMedia>
+     */
+    protected function addMediaFromTemporaryFile(string $temporaryFile, array $allowedMimeTypes = [], ?Closure $configure = null): FileAdder
+    {
+        try {
+            $this->guardAgainstInvalidMimeType($temporaryFile, $allowedMimeTypes);
+
+            $fileAdder = app(FileAdderFactory::class)->create($this, $temporaryFile)->withTemporaryFile();
+
+            return $configure ? $configure($fileAdder) : $fileAdder;
+        } catch (Throwable $exception) {
+            if (is_file($temporaryFile)) {
+                unlink($temporaryFile);
+            }
+
+            throw $exception;
         }
-
-        if (! Str::contains($filename, '.')) {
-            $mediaExtension = explode('/', mime_content_type($temporaryFile));
-            $filename = "{$filename}.{$mediaExtension[1]}";
-        }
-
-        return app(FileAdderFactory::class)
-            ->create($this, $temporaryFile)
-            ->usingName(pathinfo($filename, PATHINFO_FILENAME))
-            ->usingFileName($filename);
     }
 
     /**
@@ -188,11 +215,7 @@ trait InteractsWithMedia
 
         file_put_contents($tmpFile, $text);
 
-        $file = app(FileAdderFactory::class)
-            ->create($this, $tmpFile)
-            ->usingFileName('text.txt');
-
-        return $file;
+        return $this->addMediaFromTemporaryFile($tmpFile, configure: fn (FileAdder $fileAdder) => $fileAdder->usingFileName('text.txt'));
     }
 
     /**
@@ -227,11 +250,7 @@ trait InteractsWithMedia
         $tmpFile = tempnam(sys_get_temp_dir(), 'media-library');
         file_put_contents($tmpFile, $binaryData);
 
-        $this->guardAgainstInvalidMimeType($tmpFile, $allowedMimeTypes);
-
-        $file = app(FileAdderFactory::class)->create($this, $tmpFile);
-
-        return $file;
+        return $this->addMediaFromTemporaryFile($tmpFile, $allowedMimeTypes);
     }
 
     /**
@@ -245,11 +264,7 @@ trait InteractsWithMedia
 
         file_put_contents($tmpFile, $stream);
 
-        $file = app(FileAdderFactory::class)
-            ->create($this, $tmpFile)
-            ->usingFileName('text.txt');
-
-        return $file;
+        return $this->addMediaFromTemporaryFile($tmpFile, configure: fn (FileAdder $fileAdder) => $fileAdder->usingFileName('text.txt'));
     }
 
     /**
