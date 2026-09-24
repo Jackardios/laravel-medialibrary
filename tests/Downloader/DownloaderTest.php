@@ -100,17 +100,12 @@ it('connects to the address the guard checked when a proxy is configured', funct
 
 it('stops downloading a file bigger than the maximum file size', function (string $downloader) {
     config()->set('media-library.max_file_size', 100 * 1024);
-    $startedAt = time();
+    $filesBefore = glob(sys_get_temp_dir().'/media-library*') ?: [];
 
     expect(fn () => download($downloader, LocalHttpServer::url('/large?bytes='.(1024 * 1024))))
         ->toThrow(FileIsTooBig::class);
 
-    $leftFiles = array_filter(
-        glob(sys_get_temp_dir().'/media-library*') ?: [],
-        fn (string $path) => is_file($path) && filemtime($path) >= $startedAt && filesize($path) > 0 && trim(file_get_contents($path), 'a') === '',
-    );
-
-    expect($leftFiles)->toBe([]);
+    expect(array_values(array_diff(glob(sys_get_temp_dir().'/media-library*') ?: [], $filesBefore)))->toBe([]);
 })->with('downloaders');
 
 it('downloads a file of the maximum file size', function (string $downloader) {
@@ -119,6 +114,8 @@ it('downloads a file of the maximum file size', function (string $downloader) {
     $temporaryFile = download($downloader, LocalHttpServer::url('/large?bytes='.(100 * 1024)));
 
     expect(filesize($temporaryFile))->toBe(100 * 1024);
+
+    unlink($temporaryFile);
 })->with('downloaders');
 
 it('throws when the url cannot be downloaded', function (string $downloader, string $path) {
