@@ -1,5 +1,6 @@
 <?php
 
+use Spatie\MediaLibrary\MediaCollections\Exceptions\MediaCannotBeUpdated;
 use Spatie\MediaLibrary\MediaLibraryServiceProvider;
 use Spatie\MediaLibrary\Tests\TestSupport\TestFileNamer;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestCustomMediaWithCustomKeyName;
@@ -194,4 +195,18 @@ it('keeps the name of a responsive image it could not move', function () {
     foreach ($urls as $fileName) {
         expect("{$directory}/{$fileName}")->toBeFile();
     }
+});
+
+it('does not rename the media when its file cannot be moved', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->toMediaCollection();
+
+    // A directory where the renamed file should go makes the move fail.
+    mkdir($this->getMediaDirectory("{$media->id}/renamed.jpg"));
+
+    $media->file_name = 'renamed.jpg';
+
+    expect(fn () => $media->save())->toThrow(MediaCannotBeUpdated::class);
+
+    expect($media->fresh()->file_name)->toBe('test.jpg')
+        ->and($media->fresh()->getPath())->toBeFile();
 });

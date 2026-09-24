@@ -10,6 +10,7 @@ use Spatie\MediaLibrary\Conversions\FileManipulator;
 use Spatie\MediaLibrary\MediaCollections\Events\MediaHasBeenAddedEvent;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskCannotBeAccessed;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\MediaCannotBeUpdated;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Support\File;
 use Spatie\MediaLibrary\Support\FileNamer\FileNamer;
@@ -366,7 +367,13 @@ class Filesystem
         $oldFile = "{$mediaDirectory}/{$oldFileName}";
         $newFile = "{$mediaDirectory}/{$newFileName}";
 
-        $this->filesystem->disk($media->disk)->move($oldFile, $newFile);
+        $disk = $this->filesystem->disk($media->disk);
+
+        // Stop the update before the database points at a file that is not there. A missing
+        // original is not moved at all, as before.
+        if ($disk->exists($oldFile) && ! $disk->move($oldFile, $newFile)) {
+            throw MediaCannotBeUpdated::fileCannotBeMoved($media, $oldFile, $newFile);
+        }
     }
 
     protected function renameConversionFiles(Media $media): void

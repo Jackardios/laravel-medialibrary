@@ -11,4 +11,9 @@ class MediaCannotBeUpdated extends Exception
     {
         return new static("Media id {$media->getKey()} is not part of collection `{$collectionName}`");
     }
+
+    public static function fileCannotBeMoved(Media $media, string $from, string $to): self
+    {
+        return new static("The file of media id {$media->getKey()} cannot be moved from `{$from}` to `{$to}`");
+    }
 }
