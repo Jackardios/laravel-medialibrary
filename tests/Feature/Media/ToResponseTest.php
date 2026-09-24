@@ -51,3 +51,13 @@ test('to response throws before sending anything when the file is missing', func
 
     expect(fn () => $media->toResponse(request(), $conversion))->toThrow(FileDoesNotExist::class);
 })->with(['original' => '', 'conversion' => 'thumb']);
+
+test('to response sends a conversion under its own file name and mime type', function () {
+    $media = $this->testModelWithConversion->addMedia($this->getTestPng())->toMediaCollection();
+
+    $response = $media->toResponse(request(), 'thumb');
+
+    expect($response->headers->get('Content-Type'))->toBe('image/jpeg')
+        ->and($response->headers->get('Content-Disposition'))->toBe('attachment; filename="test-thumb.jpg"')
+        ->and((int) $response->headers->get('Content-Length'))->toBe(filesize($media->getPath('thumb')));
+});

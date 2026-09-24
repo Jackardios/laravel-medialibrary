@@ -40,6 +40,7 @@ use Spatie\MediaLibrary\Support\UrlGenerator\UrlGenerator;
 use Spatie\MediaLibrary\Support\UrlGenerator\UrlGeneratorFactory;
 use Spatie\MediaLibraryPro\Models\TemporaryUpload;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\Mime\MimeTypes;
 use WeakMap;
 
 /**
@@ -464,23 +465,30 @@ class Media extends Model implements Attachable, Htmlable, Responsable
 
     private function buildResponse($request, string $contentDispositionType, string $conversion = ''): StreamedResponse
     {
-        $filename = str_replace('"', '\'', Str::ascii($this->getDownloadFilename()));
+        // A conversion is sent under its own file name and with the mime type of its format.
+        $conversionPath = $conversion !== '' ? $this->getPathRelativeToRoot($conversion) : null;
+
+        $filename = str_replace('"', '\'', Str::ascii($conversionPath !== null ? basename($conversionPath) : $this->getDownloadFilename()));
 
         // Open the file before sending the headers, so a missing file fails the response instead
         // of a 200 with a broken body.
         $stream = $this->stream($conversion);
 
         if (! is_resource($stream)) {
-            throw FileDoesNotExist::create($this->getPathRelativeToRoot($conversion));
+            throw FileDoesNotExist::create($conversionPath ?? $this->getPathRelativeToRoot());
         }
 
-        $size = $conversion !== ''
-            ? Storage::disk($this->conversions_disk)->size($this->getPathRelativeToRoot($conversion))
+        $size = $conversionPath !== null
+            ? Storage::disk($this->conversions_disk)->size($conversionPath)
             : $this->size;
+
+        $mimeType = $conversionPath !== null
+            ? MimeTypes::getDefault()->getMimeTypes(pathinfo($conversionPath, PATHINFO_EXTENSION))[0] ?? 'application/octet-stream'
+            : $this->mime_type;
 
         $downloadHeaders = [
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
-            'Content-Type' => $this->mime_type,
+            'Content-Type' => $mimeType,
             'Content-Length' => $size,
             'Content-Disposition' => $contentDispositionType.'; filename="'.$filename.'"',
             'Pragma' => 'public',
