@@ -555,7 +555,7 @@ class FileAdder
 
     protected function guardAgainstDisallowedFileName(string $originalFileName, string $sanitizedFileName): void
     {
-        if (in_array(strtolower($sanitizedFileName), self::$disallowedFileNames, true)) {
+        if (in_array(strtolower($sanitizedFileName), static::$disallowedFileNames, true)) {
             throw FileNameNotAllowed::configuresTheServer($originalFileName, $sanitizedFileName);
         }
 

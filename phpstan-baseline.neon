@@ -12,7 +12,3 @@ parameters:
 			message: "#^Method Spatie\\\\MediaLibrary\\\\HasMedia\\:\\:registerAllMediaConversions\\(\\) invoked with 1 parameter, 0 required\\.$#"
 			count: 1
 			path: src/Conversions/ConversionCollection.php
-
-		-
-			message: "#FFMpeg#"
-			path: src/Conversions/ImageGenerators/Video.php

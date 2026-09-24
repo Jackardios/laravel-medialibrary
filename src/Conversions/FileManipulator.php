@@ -64,7 +64,7 @@ class FileManipulator
     }
 
     /**
-     * Regenerate every derived file for a single media as one atomic unit of work.
+     * Regenerate every derived file of a media in one pass.
      *
      * Unlike createDerivedFiles(), this does not partition conversions into queued/non-queued
      * (the whole media is the unit of work, see `media-library:regenerate --queue-all`), and it

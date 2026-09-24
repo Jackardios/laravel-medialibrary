@@ -59,7 +59,8 @@ class HttpFacadeDownloader implements Downloader
             $uri = $request->getUri();
             $address = $guard->addressFor((string) $uri);
 
-            // Without ext-curl Guzzle sends through PHP streams, which it cannot pin to an address.
+            // A redirect is sent with the options of the request before it, pin included. Without
+            // ext-curl Guzzle sends through PHP streams, which cannot be pinned to an address.
             if (defined('CURLOPT_RESOLVE')) {
                 unset($options['curl'][CURLOPT_RESOLVE]);
             }
