@@ -640,6 +640,11 @@ class FileAdder
 
             $model->media()->save($media);
 
+            // Keep a loaded media relation up to date instead of lazy loading it again.
+            if ($model->relationLoaded('media')) {
+                $model->media->push($media);
+            }
+
             try {
                 if ($fileAdder->file instanceof RemoteFile) {
                     $addedMediaSuccessfully = $this->filesystem->addRemote($fileAdder->file, $media, $fileAdder->fileName);
@@ -658,6 +663,10 @@ class FileAdder
 
             if (! $addedMediaSuccessfully) {
                 $media->forceDelete();
+
+                if ($model->relationLoaded('media')) {
+                    $model->setRelation('media', $model->media->reject(fn (Media $item) => $item->is($media)));
+                }
 
                 throw DiskCannotBeAccessed::create($media->disk);
             }
