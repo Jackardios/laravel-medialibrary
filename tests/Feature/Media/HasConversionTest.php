@@ -5,3 +5,11 @@ it('can have a conversion', function () {
 
     expect($media->hasGeneratedConversion('thumb'))->toBeTrue();
 });
+
+it('stores a conversion marked as generated', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->toMediaCollection();
+
+    $media->markAsConversionGenerated('thumb');
+
+    expect($media->fresh()->hasGeneratedConversion('thumb'))->toBeTrue();
+});
