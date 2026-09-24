@@ -81,7 +81,7 @@ The job is always dispatched onto the `media-library.queue_name` queue, regardle
 > **Note**
 > With `--queue-all` the per-conversion `queued()`/`nonQueued()` settings and any custom `media-library.jobs.perform_conversions` / `media-library.jobs.generate_responsive_images` jobs are **not** used. You can swap the per-media job through `media-library.jobs.regenerate_media`.
 
-The command exits with a non-zero status when a media item could not be regenerated (or its job could not be dispatched), after listing the errors.
+The command exits with a non-zero status when regenerating a media item throws (or its job could not be dispatched), after listing the errors. Like upstream's command, the default pipeline skips a media whose original is missing from its disk without an error.
 
 If your model registers conversions using the model instance (`$registerMediaConversionsUsingModelInstance = true`), add `--eager-models` to eager-load the related models and avoid an N+1 query while regenerating:
 

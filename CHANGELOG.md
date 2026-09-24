@@ -22,7 +22,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 
 ### Changed
 
-- `media-library:regenerate` behaves as upstream's by default: `--only-missing` checks the conversions disk, and non-queued conversions run in the command's process. The fork's fast paths are opt-in: `--trust-database` (decide "missing" from the `generated_conversions` column) and `--queue-all` (one `RegenerateMediaJob` per media that downloads the original once); `--queue-connection` implies `--queue-all`. `--verify-existence` is gone, its behaviour is the default. The command exits with a failure status when a media could not be regenerated.
+- `media-library:regenerate` behaves as upstream's by default: `--only-missing` checks the conversions disk, and non-queued conversions run in the command's process. The fork's fast paths are opt-in: `--trust-database` (decide "missing" from the `generated_conversions` column) and `--queue-all` (one `RegenerateMediaJob` per media that downloads the original once); `--queue-connection` implies `--queue-all`. `--verify-existence` is gone, its behaviour is the default. The command exits with a failure status when regenerating a media throws; `handle()` returns `int`.
 - `--with-responsive-images` regenerates the responsive images of the original only for media that has them.
 - A download response (`toResponse()`, `toInlineResponse()`) of a missing file throws `FileDoesNotExist` before anything is sent. A conversion is sent, and attached to mails, under its own file name and mime type.
 - `Media::copy()` and `Filesystem::copyFromMediaLibrary()` throw `FileDoesNotExist` when the original is missing from its disk.
@@ -35,7 +35,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - Urls of disks with a configured `url` (S3 behind a CDN, R2, ...) percent-encode the file name, as urls of local disks do.
 - Urls of media without `updated_at` leave out the `?v=` version.
 - The optimizer chain of a conversion is built from `image_optimizers` when its manipulations are read instead of when the conversion is registered.
-- A media keeps its conversion collection while its attributes are unchanged, for the 16 media used last.
+- A media keeps its conversion collection while its attributes are unchanged, for the last 16 media it was built for.
 
 ### Fixed
 

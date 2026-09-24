@@ -44,7 +44,12 @@ Because there are many breaking changes an upgrade is not that easy. There are m
 - The `MediaRepository` getters return a `LazyCollection` (upstream 11.7.6).
 - Deleting media removes the files of the conversions that are registered; files of conversions you removed from your code stay on the disk.
 - `media-library:clean` also removes unknown directories on every disk the media table uses. Check its dry run (`--dry-run`) before running it on a disk that holds other files.
-- A conversion collection is kept for the 16 media used last while their attributes are unchanged. If you change config (such as `file_namer`) at runtime, use fresh media instances.
+- A conversion collection is kept for the last 16 media it was built for, while their attributes are unchanged. If you change config (such as `file_namer`) at runtime, use fresh media instances.
+
+### Extending the package
+
+- `RegenerateCommand::handle()` returns `int` (the exit status). A subclass that overrides it must declare `: int`.
+- `Conversion` resolves its file namer when it first names a file, and builds its optimizer chain when its manipulations are read. A subclass that reads the protected `$fileNamer` directly has to call `getConversionFile()` first.
 
 ### Removed
 
