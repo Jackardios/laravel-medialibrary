@@ -101,13 +101,13 @@ jobs:
         run: composer update --prefer-stable --prefer-dist --no-interaction
 
       - name: Execute the S3 tests
-        run: vendor/bin/pest tests/Feature/S3Integration
+        run: vendor/bin/pest tests/Feature/S3Integration tests/Feature/Media/GetAvailableTemporaryUrlTest.php
 
   coverage:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
 
-    name: Coverage and mutation testing
+    name: Coverage
 
     steps:
       - uses: actions/checkout@v7
@@ -132,6 +132,34 @@ jobs:
 
       - name: Coverage
         run: vendor/bin/pest --parallel --coverage --min=88
+
+  mutation:
+    runs-on: ubuntu-latest
+    # About 16 minutes on 10 local processes; GitHub's runners have 4.
+    timeout-minutes: 60
+
+    name: Mutation testing
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install ffmpeg, ghostscript and the image optimizers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg ghostscript jpegoptim optipng pngquant gifsicle webp
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: ${{ env.EXTENSIONS }}
+          coverage: pcov
+
+      - name: Allow ImageMagick to read PDFs
+        run: sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-*/policy.xml
+
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-interaction
 
       # The mutation plugin counts a mutation as caught when its test run fails for any reason:
       # when the --filter of a line covered by some 400 tests is too large for PCRE ("No tests
