@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Arr;
 use Spatie\MediaLibrary\Downloaders\UrlGuard;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidUrl;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\UnreachableUrl;
@@ -53,6 +54,15 @@ it('does not check any host when the protection is disabled', function () {
     config()->set('media-library.media_downloader_blocks_private_networks', false);
 
     expect((new UrlGuard)->addressFor('http://127.0.0.1/image.jpg'))->toBeNull();
+});
+
+it('checks the host when the protection is not configured', function () {
+    config()->set('media-library', Arr::except(config('media-library'), 'media_downloader_blocks_private_networks'));
+
+    expect(config()->has('media-library.media_downloader_blocks_private_networks'))->toBeFalse();
+
+    expect(fn () => (new UrlGuard)->addressFor('http://127.0.0.1/image.jpg'))
+        ->toThrow(InvalidUrl::class, 'private or reserved address');
 });
 
 it('refuses a url that is not an http url', function (string $url) {
