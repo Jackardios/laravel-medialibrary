@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Mail\Attachment;
 use Illuminate\Support\Str;
 use Spatie\MediaLibrary\Conversions\FileManipulator;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
@@ -214,4 +215,20 @@ it('moves conversions stored on a separate disk when moving media on update', fu
         ->and($media->getPath('thumb'))->toBeFile()
         ->and($media->getPath('thumb'))->not->toBe($oldConversionPath)
         ->and($oldConversionPath)->not->toBeFile();
+});
+
+it('attaches a conversion under its own name and mime type', function () {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestPng())
+        ->storingConversionsOnDisk('secondMediaDisk')
+        ->toMediaCollection();
+
+    // Resolve the attachment the way a mailable does.
+    $attachment = $media->mailAttachment('thumb')->attachWith(
+        fn () => null,
+        fn (Closure $data, Attachment $attachment) => $attachment,
+    );
+
+    expect($attachment->as)->toBe('test-thumb.jpg')
+        ->and($attachment->mime)->toBe('image/jpeg');
 });
