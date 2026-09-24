@@ -15,6 +15,8 @@ class GenerateResponsiveImagesJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
+    public $deleteWhenMissingModels = true;
+
     public function __construct(protected Media $media) {}
 
     public function handle(): bool
