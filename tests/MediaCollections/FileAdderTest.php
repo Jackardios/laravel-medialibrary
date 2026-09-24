@@ -51,6 +51,9 @@ it('blocks a disallowed extension anywhere in the file name', function (string $
     'archive.phar',
     '.htaccess',
     'config.htaccess',
+    '.user.ini',
+    '.USER.INI',
+    'web.config',
 ]);
 
 it('allows files with multiple or non-dangerous extensions', function (string $fileName) {
@@ -64,6 +67,8 @@ it('allows files with multiple or non-dangerous extensions', function (string $f
     'image.jpeg',
     'backup.2026.05.zip',
     'document.pdf',
+    'settings.ini',
+    'app.config',
 ]);
 
 it('respects a custom disallowed extensions config', function () {

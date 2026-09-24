@@ -520,6 +520,14 @@ class FileAdder
         'cgi', 'pl', 'asp', 'aspx', 'jsp', 'jspx',
     ];
 
+    /**
+     * File names that configure PHP or the web server for the directory they are stored in,
+     * so they are blocked whatever their extension.
+     *
+     * @var array<int, string>
+     */
+    protected static array $disallowedFileNames = ['.user.ini', 'web.config'];
+
     public function defaultSanitizer(string $fileName): string
     {
         $sanitizedFileName = preg_replace('#\p{C}+#u', '', $fileName);
@@ -533,6 +541,10 @@ class FileAdder
 
     protected function guardAgainstDisallowedFileName(string $originalFileName, string $sanitizedFileName): void
     {
+        if (in_array(strtolower($sanitizedFileName), self::$disallowedFileNames, true)) {
+            throw FileNameNotAllowed::configuresTheServer($originalFileName, $sanitizedFileName);
+        }
+
         $extensions = $this->extensionsFromFileName($sanitizedFileName);
 
         $offending = array_intersect($extensions, $this->disallowedExtensions());
