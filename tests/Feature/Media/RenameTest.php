@@ -175,3 +175,23 @@ it('names renamed responsive images the way the file namer does', function () {
     }
 });
 
+it('keeps the name of a responsive image it could not move', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->withResponsiveImages()->toMediaCollection()->fresh();
+
+    $directory = $this->getMediaDirectory("{$media->id}/responsive-images");
+    $blocked = $media->responsive_images['media_library_original']['urls'][0];
+
+    // A directory where the renamed file should go makes the move fail.
+    mkdir("{$directory}/renamed".substr($blocked, strrpos($blocked, '___')));
+
+    $media->file_name = 'renamed.jpg';
+    $media->save();
+
+    $urls = $media->fresh()->responsive_images['media_library_original']['urls'];
+
+    expect($urls[0])->toBe($blocked);
+
+    foreach ($urls as $fileName) {
+        expect("{$directory}/{$fileName}")->toBeFile();
+    }
+});

@@ -440,8 +440,9 @@ class Filesystem
                 // The physical file might be missing (failed generation, manual deletion, etc.). We still
                 // rewrite the stored name below so the srcset stays consistent and a later regenerate can
                 // recreate the file; leaving the stale name would keep the srcset broken forever.
-                if ($disk->exists($oldFile)) {
-                    $disk->move($oldFile, $newFile);
+                // A file that could not be moved keeps its name, under which it is still stored.
+                if ($disk->exists($oldFile) && ! $disk->move($oldFile, $newFile)) {
+                    continue;
                 }
 
                 $responsiveImages[$conversionName]['urls'][$index] = $newFileName;
