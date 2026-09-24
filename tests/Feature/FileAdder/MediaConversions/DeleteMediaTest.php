@@ -1,6 +1,8 @@
 <?php
 
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
+use Spatie\MediaLibrary\MediaCollections\Events\CollectionHasBeenClearedEvent;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithoutMediaConversions;
 
 beforeEach(function () {
@@ -62,6 +64,22 @@ it('can clear a collection excluding some media', function () {
     expect($this->testModelWithoutMediaConversions->getMedia('default'))->toHaveCount(3);
     expect($excludedMedia[0])->toEqual($this->testModelWithoutMediaConversions->getMedia('images')[0]);
     expect($excludedMedia[1])->toEqual($this->testModelWithoutMediaConversions->getMedia('images')[1]);
+});
+
+it('announces a collection cleared except some media only once it is empty', function () {
+    Event::fake([CollectionHasBeenClearedEvent::class]);
+
+    $model = $this->testModelWithoutMediaConversions;
+
+    $model->clearMediaCollectionExcept('images', $model->getFirstMedia('images'));
+
+    Event::assertNotDispatched(CollectionHasBeenClearedEvent::class);
+    expect($model->fresh()->getMedia('images'))->toHaveCount(1);
+
+    $model->clearMediaCollectionExcept('images', $model->getFirstMedia('default'));
+
+    Event::assertDispatched(CollectionHasBeenClearedEvent::class, fn (CollectionHasBeenClearedEvent $event) => $event->collectionName === 'images');
+    expect($model->fresh()->getMedia('images'))->toHaveCount(0);
 });
 
 it('provides a chainable method for clearing a collection', function () {
