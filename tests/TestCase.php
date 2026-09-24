@@ -338,8 +338,9 @@ abstract class TestCase extends Orchestra
 
     protected function assertFileDoesntExistsInZip(string $zipPath, string $filename): void
     {
+        // FL_NODIR only compares the file name part, so a name with a folder also needs a full match.
         $this->assertFalse(
-            $this->fileExistsInZip($zipPath, $filename),
+            $this->fileExistsInZip($zipPath, $filename) || $this->fileExistsInZipRecognizeFolder($zipPath, $filename),
             "Failed to assert that {$zipPath} doesn't contain a file name {$filename}"
         );
     }
