@@ -1,12 +1,15 @@
 <?php
 
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Spatie\MediaLibrary\MediaLibraryServiceProvider;
 use Spatie\MediaLibrary\Support\FileRemover\DefaultFileRemover;
 use Spatie\MediaLibrary\Support\FileRemover\FileBaseFileRemover;
 use Spatie\MediaLibrary\Support\PathGenerator\DefaultPathGenerator;
@@ -336,5 +339,48 @@ it('removes each file of a media once', function () {
 
     expect(DiskRecordingDeletes::$deleted)->not->toBeEmpty()
         ->and(array_unique(DiskRecordingDeletes::$deleted))->toBe(DiskRecordingDeletes::$deleted)
+        ->and($this->getMediaDirectory($media->id))->not->toBeDirectory();
+});
+
+it('removes the conversions and responsive images stored on a separate conversions disk', function () {
+    $media = $this->testModelWithConversionsOnOtherDisk
+        ->addMedia($this->getTestJpg())
+        ->withResponsiveImages()
+        ->toMediaCollection('thumb');
+
+    $conversionsDirectory = $this->getTempDirectory("media2/{$media->id}");
+
+    expect("{$conversionsDirectory}/conversions/test-thumb.jpg")->toBeFile()
+        ->and(File::files("{$conversionsDirectory}/responsive-images"))->not->toBeEmpty();
+
+    $media->delete();
+
+    expect($conversionsDirectory)->not->toBeDirectory()
+        ->and($this->getMediaDirectory($media->id))->not->toBeDirectory();
+});
+
+class SoftDeletingMedia extends Media
+{
+    use SoftDeletes;
+}
+
+it('keeps the files of a soft deleted media until it is force deleted', function () {
+    Schema::table('media', fn (Blueprint $table) => $table->softDeletes());
+
+    config()->set('media-library.media_model', SoftDeletingMedia::class);
+
+    (new MediaLibraryServiceProvider(app()))->register()->boot();
+
+    $media = $this->testModel->addMedia($this->getTestJpg())->toMediaCollection('images');
+
+    expect($media)->toBeInstanceOf(SoftDeletingMedia::class);
+
+    $media->delete();
+
+    expect($media->getPath())->toBeFile();
+
+    $media->forceDelete();
+
+    expect($media->getPath())->not->toBeFile()
         ->and($this->getMediaDirectory($media->id))->not->toBeDirectory();
 });
