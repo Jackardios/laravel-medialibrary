@@ -235,7 +235,19 @@ class Filesystem
 
     public function copyFromMediaLibrary(Media $media, string $targetFile): string
     {
-        file_put_contents($targetFile, $this->getStream($media));
+        $stream = $this->getStream($media);
+
+        // Without this, a missing original would be copied as an empty file and fail later
+        // with an unrelated "could not load image" error.
+        if (! is_resource($stream)) {
+            throw FileDoesNotExist::create($this->getMediaDirectory($media).$media->file_name);
+        }
+
+        try {
+            file_put_contents($targetFile, $stream);
+        } finally {
+            fclose($stream);
+        }
 
         return $targetFile;
     }

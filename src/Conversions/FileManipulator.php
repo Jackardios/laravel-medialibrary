@@ -9,6 +9,7 @@ use Spatie\MediaLibrary\Conversions\Actions\PerformConversionAction;
 use Spatie\MediaLibrary\Conversions\Events\ConversionHasBeenCompletedEvent;
 use Spatie\MediaLibrary\Conversions\ImageGenerators\ImageGeneratorFactory;
 use Spatie\MediaLibrary\Conversions\Jobs\PerformConversionsJob;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\ResponsiveImages\Jobs\GenerateResponsiveImagesJob;
@@ -220,13 +221,18 @@ class FileManipulator
         $temporaryDirectory = TemporaryDirectory::create();
 
         try {
-            $copiedOriginalFile = app(Filesystem::class)->copyFromMediaLibrary(
-                $media,
-                $temporaryDirectory->path(Str::random(32).'.'.$media->extension)
-            );
+            try {
+                $copiedOriginalFile = app(Filesystem::class)->copyFromMediaLibrary(
+                    $media,
+                    $temporaryDirectory->path(Str::random(32).'.'.$media->extension)
+                );
+            } catch (FileDoesNotExist) {
+                // Without an original there is nothing to convert, e.g. when regenerating a
+                // library that has files missing.
+                return $this;
+            }
 
-            // Check if the file exists and has content to avoid issues with missing files
-            if (! file_exists($copiedOriginalFile) || filesize($copiedOriginalFile) === 0) {
+            if (filesize($copiedOriginalFile) === 0) {
                 return $this;
             }
 

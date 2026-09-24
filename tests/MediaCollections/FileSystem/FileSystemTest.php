@@ -1,5 +1,7 @@
 <?php
 
+use Spatie\MediaLibrary\Conversions\FileManipulator;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
 use Spatie\MediaLibrary\Tests\TestSupport\TestPrefixPathGenerator;
 
@@ -92,4 +94,34 @@ it('can get stream with custom path generator that uses prefix instead of direct
     expect(is_resource($stream))->toBeTrue();
 
     fclose($stream);
+});
+
+it('refuses to copy an original that is missing from the disk', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->toMediaCollection();
+
+    unlink($media->getPath());
+
+    $target = $this->getTempDirectory('copy.jpg');
+
+    expect(fn () => $this->filesystem->copyFromMediaLibrary($media, $target))
+        ->toThrow(FileDoesNotExist::class)
+        ->and($target)->not->toBeFile();
+});
+
+it('keeps the responsive images when regenerating a media whose original is missing', function () {
+    $media = $this->testModelWithResponsiveImages->addMedia($this->getTestJpg())->withResponsiveImages()->toMediaCollection();
+
+    $responsiveImages = $media->fresh()->responsive_images;
+    $files = $media->responsiveImages()->getFilenames();
+
+    unlink($media->getPath());
+
+    expect(fn () => app(FileManipulator::class)->regenerateDerivedFiles($media->fresh(), withResponsiveImages: true))
+        ->toThrow(FileDoesNotExist::class);
+
+    expect($media->fresh()->responsive_images)->toBe($responsiveImages);
+
+    foreach ($files as $file) {
+        expect($this->getMediaDirectory("{$media->id}/responsive-images/{$file}"))->toBeFile();
+    }
 });

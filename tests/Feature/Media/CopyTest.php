@@ -1,5 +1,6 @@
 <?php
 
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\FileAdder;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
@@ -188,4 +189,17 @@ it('can copy media with manipulations', function () {
     $anotherMedia = $media->copy($anotherModel);
 
     expect($media->manipulations)->toEqual($anotherMedia->manipulations);
+});
+
+it('refuses to copy media whose original is missing', function () {
+    $model = TestModel::create(['name' => 'test']);
+
+    $media = $model->addMedia($this->getTestJpg())->toMediaCollection();
+
+    unlink($media->getPath());
+
+    expect(fn () => $media->copy(TestModel::create(['name' => 'another-test'])))
+        ->toThrow(FileDoesNotExist::class);
+
+    expect(Media::count())->toBe(1);
 });
