@@ -57,7 +57,6 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - Conversions build their optimizer chain and file namer only when needed, and a media keeps its conversion collection while its urls are built: a conversion url needs 24 instead of 43 container resolutions, an `img()` tag with eight responsive images 53 instead of 185.
 - A srcset builds one url generator for the whole set instead of one per image; `hasResponsiveImages()` no longer builds urls.
 - A media collection is no longer a reference cycle.
-- A zip of local files no longer allocates 16 MiB per file.
 - Renaming a media checks only the conversions of its collection and no longer loads the media again.
 
 ### Removed

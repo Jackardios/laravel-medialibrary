@@ -241,28 +241,19 @@ it('names the files the same way every time the zip is streamed', function () {
         ->and(zipEntryNames($mediaStream))->toBe(['test.jpg', 'test (1).jpg', 'test (2).jpg']);
 });
 
-it('reads no more of a local file than its size', function () {
-    $zipStream = MediaStream::create('my-media.zip')->addMedia(Media::all());
-    $output = fopen('php://memory', 'w+');
-    $zipStream->useZipOptions(function (array &$options) use ($output) {
-        $options['outputStream'] = $output;
-        $options['sendHttpHeaders'] = false;
-    });
+it('zips every file with its exact contents', function () {
+    $smallFile = (new TemporaryDirectory)->create()->path('small.txt');
+    file_put_contents($smallFile, 'hello');
+    $this->testModel->addMedia($smallFile)->toMediaCollection();
 
-    memory_reset_peak_usage();
-    $memoryBefore = memory_get_usage();
-
-    $zipStream->getZipStream();
-
-    // Without the size, zipstream allocates 16 MiB for every read.
-    expect(memory_get_peak_usage() - $memoryBefore)->toBeLessThan(4 * 1024 * 1024);
-
-    rewind($output);
+    ob_start();
+    @MediaStream::create('my-media.zip')->addMedia(Media::all())->toResponse(request())->sendContent();
     $zipPath = (new TemporaryDirectory)->create()->path('media.zip');
-    file_put_contents($zipPath, stream_get_contents($output));
+    file_put_contents($zipPath, ob_get_clean());
 
-    $this->assertFileExistsInZip($zipPath, 'test (2).jpg');
-})->skip(
-    getenv('PEST_MUTATION_TESTING') !== false,
-    'mutation testing opens files through its own stream wrapper, whose size the stream does not trust',
-);
+    $zip = new ZipArchive;
+    expect($zip->open($zipPath, ZipArchive::CHECKCONS))->toBeTrue()
+        ->and($zip->getFromName('test (2).jpg'))->toBe(file_get_contents($this->getTestJpg()))
+        ->and($zip->getFromName('small.txt'))->toBe('hello');
+    $zip->close();
+});
