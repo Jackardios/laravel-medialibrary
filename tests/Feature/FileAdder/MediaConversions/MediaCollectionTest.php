@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Support\Facades\Event;
+use Spatie\MediaLibrary\Conversions\Events\ConversionWillStartEvent;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileUnacceptableForCollection;
 use Spatie\MediaLibrary\MediaCollections\File;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -276,6 +278,29 @@ test('a single file collection keeps the media that was just added even when it 
 
     expect($destination->fresh()->getMedia('avatar'))->toHaveCount(1);
     expect($destination->fresh()->getFirstMedia('avatar')->file_name)->toBe('bucket-new.jpg');
+});
+
+test('a single file collection keeps only the new media when one of its conversions fails', function () {
+    $testModel = new class extends TestModelWithConversion
+    {
+        public function registerMediaCollections(): void
+        {
+            $this
+                ->addMediaCollection('images')
+                ->singleFile();
+        }
+    };
+
+    $model = $testModel::create(['name' => 'testmodel']);
+
+    $model->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images');
+
+    Event::listen(ConversionWillStartEvent::class, fn () => throw new RuntimeException('conversion failed'));
+
+    expect(fn () => $model->addMedia($this->getTestJpg())->preservingOriginal()->usingFileName('new.jpg')->toMediaCollection('images'))
+        ->toThrow(RuntimeException::class, 'conversion failed');
+
+    expect($model->fresh()->getMedia('images')->pluck('file_name')->all())->toBe(['new.jpg']);
 });
 
 test('if the only keeps latest method is specified it will delete all other media and will only keep the latest n ones', function () {

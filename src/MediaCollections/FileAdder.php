@@ -637,10 +637,20 @@ class FileAdder
 
             $model->media()->save($media);
 
-            if ($fileAdder->file instanceof RemoteFile) {
-                $addedMediaSuccessfully = $this->filesystem->addRemote($fileAdder->file, $media, $fileAdder->fileName);
-            } else {
-                $addedMediaSuccessfully = $this->filesystem->add($fileAdder->pathToFile, $media, $fileAdder->fileName);
+            try {
+                if ($fileAdder->file instanceof RemoteFile) {
+                    $addedMediaSuccessfully = $this->filesystem->addRemote($fileAdder->file, $media, $fileAdder->fileName);
+                } else {
+                    $addedMediaSuccessfully = $this->filesystem->add($fileAdder->pathToFile, $media, $fileAdder->fileName);
+                }
+            } catch (Throwable $exception) {
+                // When a non-queued conversion fails, the file was stored and the media added:
+                // the collection still has to keep to its size limit.
+                if (Storage::disk($media->disk)->exists($media->getPathRelativeToRoot())) {
+                    $this->keepCollectionSizeLimit($model, $media);
+                }
+
+                throw $exception;
             }
 
             if (! $addedMediaSuccessfully) {
@@ -675,23 +685,28 @@ class FileAdder
                 dispatch($job);
             }
 
-            if ($collectionSizeLimit = optional($this->getMediaCollection($media->collection_name))->collectionSizeLimit) {
-                /** @var HasMedia */
-                $subject = $this->subject->fresh();
-                $collectionMedia = $subject->getMedia($media->collection_name);
-
-                if ($collectionMedia->count() > $collectionSizeLimit) {
-                    $mediaToKeep = $collectionMedia
-                        ->reject(fn (Media $collectionItem) => $collectionItem->is($media))
-                        ->sortByDesc($media->getKeyName())
-                        ->take($collectionSizeLimit - 1)
-                        ->push($media);
-
-                    $model->clearMediaCollectionExcept($media->collection_name, $mediaToKeep);
-                }
-            }
+            $this->keepCollectionSizeLimit($model, $media);
         } finally {
             $fileAdder->removeTemporaryFile();
+        }
+    }
+
+    protected function keepCollectionSizeLimit(HasMedia $model, Media $media): void
+    {
+        if ($collectionSizeLimit = optional($this->getMediaCollection($media->collection_name))->collectionSizeLimit) {
+            /** @var HasMedia */
+            $subject = $this->subject->fresh();
+            $collectionMedia = $subject->getMedia($media->collection_name);
+
+            if ($collectionMedia->count() > $collectionSizeLimit) {
+                $mediaToKeep = $collectionMedia
+                    ->reject(fn (Media $collectionItem) => $collectionItem->is($media))
+                    ->sortByDesc($media->getKeyName())
+                    ->take($collectionSizeLimit - 1)
+                    ->push($media);
+
+                $model->clearMediaCollectionExcept($media->collection_name, $mediaToKeep);
+            }
         }
     }
 
