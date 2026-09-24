@@ -262,4 +262,7 @@ it('reads no more of a local file than its size', function () {
     file_put_contents($zipPath, stream_get_contents($output));
 
     $this->assertFileExistsInZip($zipPath, 'test (2).jpg');
-});
+})->skip(
+    getenv('PEST_MUTATION_TESTING') !== false,
+    'mutation testing opens files through its own stream wrapper, whose size the stream does not trust',
+);
