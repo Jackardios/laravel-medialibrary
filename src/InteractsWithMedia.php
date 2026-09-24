@@ -29,6 +29,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Support\MediaLibraryPro;
 use Spatie\MediaLibraryPro\PendingMediaLibraryRequestHandler;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\Mime\MimeTypes;
 use Throwable;
 
 /**
@@ -175,8 +176,10 @@ trait InteractsWithMedia
             }
 
             if (! Str::contains($filename, '.')) {
-                $mediaExtension = explode('/', mime_content_type($temporaryFile));
-                $filename = "{$filename}.{$mediaExtension[1]}";
+                // The usual extension of the type (`svg` for `image/svg+xml`), or else its subtype.
+                $mimeType = (string) mime_content_type($temporaryFile);
+                $extension = MimeTypes::getDefault()->getExtensions($mimeType)[0] ?? Str::after($mimeType, '/');
+                $filename = "{$filename}.{$extension}";
             }
 
             return $fileAdder

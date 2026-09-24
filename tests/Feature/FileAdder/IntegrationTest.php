@@ -352,6 +352,19 @@ it('does not let an encoded path in a remote url escape the media directory', fu
     expect($this->getMediaDirectory("{$media->id}/evil.jpg"))->toBeFile();
 });
 
+it('derives the extension of a url without one from the type of the file', function (string $file, string $fileName) {
+    config()->set('media-library.media_downloader', HttpFacadeDownloader::class);
+
+    Http::fake(['*' => Http::response(file_get_contents($this->getTestFilesDirectory($file)))]);
+
+    $media = $this->testModel->addMediaFromUrl('https://example.com/logo')->toMediaCollection();
+
+    expect($media->file_name)->toBe($fileName);
+})->with([
+    'svg' => ['test.svg', 'logo.svg'],
+    'jpg' => ['test.jpg', 'logo.jpg'],
+]);
+
 it('will thrown an exception when a remote file could not be added', function () {
     $url = 'https://docs.spatie.be/images/medialibrary/thisonedoesnotexist.jpg';
 
