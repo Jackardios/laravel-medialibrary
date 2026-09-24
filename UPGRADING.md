@@ -50,10 +50,24 @@ Because there are many breaking changes an upgrade is not that easy. There are m
 
 - `RegenerateCommand::handle()` returns `int` (the exit status). A subclass that overrides it must declare `: int`.
 - `Conversion` resolves its file namer when it first names a file, and builds its optimizer chain when its manipulations are read. A subclass that reads the protected `$fileNamer` directly has to call `getConversionFile()` first.
+- A class that overrides one of these methods, or implements `HasMedia` without the trait, must match the new signatures (most come from upstream):
+  - `HasMedia::getMediaCollection(string $collectionName = 'default'): ?MediaCollection` is new in the interface.
+  - `Media::toResponse($request, string $conversion = '')`, `toInlineResponse($request, string $conversion = '')`, `stream(string $conversion = '')` and `getTemporaryUrl(?DateTimeInterface $expiration = null, ...)`.
+  - `InteractsWithMedia::hasMedia(string $collectionName = 'default', array|callable $filters = [])` and `getFirstTemporaryUrl(?DateTimeInterface $expiration = null, ...)`.
+  - `Conversion::withResponsiveImages(bool $withResponsiveImages = true)`.
+  - `FileManipulator::createDerivedFiles(..., bool $queueAll = false)`.
+  - `MediaStream::getZipStream(bool $finish = true)`.
+  - `ClearCommand::getMediaItems()`, `CleanCommand::getMediaItems()` and `CleanCommand::getOrphanedMediaItems()` return a `LazyCollection`.
 
 ### Removed
 
 - `ResponsiveImageGenerator::cleanResponsiveImages()` (protected). Responsive images are replaced once the new set has been generated.
+
+## From spatie/laravel-medialibrary 11.x to jackardios/laravel-medialibrary 2.0
+
+- Replace the package: `composer remove spatie/laravel-medialibrary` and `composer require jackardios/laravel-medialibrary:^2.0`. The namespace stays `Spatie\MediaLibrary`, so no code changes are needed for that.
+- Upgrade to spatie 11.23.8 first if you are on an older 11.x; the steps of the upstream releases apply.
+- 2.0 behaves like spatie 11.23.8 except for what the 2.0.0 and 1.0.0 entries of the [changelog](CHANGELOG.md) list. The sections above on adding media (urls on private networks, refused and sanitized file names) apply to you as well. `media-library:regenerate` behaves as upstream's unless you add the new `--trust-database` or `--queue-all`.
 
 ## Upgrading spatie/laravel-medialibrary
 
