@@ -313,23 +313,12 @@ class FileManipulator
     }
 
     /**
-     * Check whether a conversion file exists on the conversions disk.
-     *
-     * Conversions are stored on the `conversions_disk`, which may differ from the original's
-     * `disk` (e.g. private originals, public conversions). `getPath()` already resolves against
-     * `conversions_disk`, so the existence check must use the same disk — otherwise it looks in
-     * the wrong place and never finds the file.
+     * Check whether a conversion file exists on the conversions disk, which may differ from the
+     * original's `disk` (e.g. private originals, public conversions).
      */
     protected function conversionFileExists(Media $media, string $conversionName): bool
     {
-        $conversionsDisk = $media->conversions_disk;
-        $relativePath = $media->getPath($conversionName);
-
-        if ($rootPath = config("filesystems.disks.{$conversionsDisk}.root")) {
-            $relativePath = str_replace($rootPath, '', $relativePath);
-        }
-
-        return Storage::disk($conversionsDisk)->exists($relativePath);
+        return Storage::disk($media->conversions_disk)->exists($media->getPathRelativeToRoot($conversionName));
     }
 
     protected function dispatchQueuedConversions(

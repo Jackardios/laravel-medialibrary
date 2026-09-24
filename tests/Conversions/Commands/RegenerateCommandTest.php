@@ -752,3 +752,25 @@ class RegenerateTestModelWithFormat extends TestModel
         $this->addMediaConversion('thumb')->width(20)->format(static::$format)->nonQueued();
     }
 }
+
+it('recognises existing conversions when the disk root is not a prefix of their path', function () {
+    // On Windows the local adapter joins the root with `\`, and a root configured with a trailing
+    // `/` is then no prefix of the absolute path the disk reports.
+    config()->set('filesystems.disks.public.root', $this->getMediaDirectory().'/');
+    config()->set('filesystems.disks.public.directory_separator', '\\');
+
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    // The adapter itself writes with `/`, only the reported path uses `\`.
+    $thumb = str_replace('\\', '/', $media->getPath('thumb'));
+    expect($thumb)->toBeFile();
+    touch($thumb, time() - 5);
+    $createdAt = filemtime($thumb);
+
+    $this->artisan('media-library:regenerate', ['--only-missing' => true]);
+
+    clearstatcache();
+    expect(filemtime($thumb))->toBe($createdAt);
+});
