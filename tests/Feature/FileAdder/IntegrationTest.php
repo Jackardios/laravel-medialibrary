@@ -423,6 +423,18 @@ test('the file name can be modified using a file namer', function () {
     $this->assertFileExists($this->getMediaDirectory($media->id.'/renamed_original_file.jpg'));
 });
 
+test('a file from a disk is named once', function () {
+    Storage::disk('secondMediaDisk')->put('incoming/pic.jpg', file_get_contents($this->getTestJpg()));
+
+    $media = $this->testModel
+        ->addMediaFromDisk('incoming/pic.jpg', 'secondMediaDisk')
+        ->sanitizingFileName(fn (string $fileName) => "x-{$fileName}")
+        ->toMediaCollection();
+
+    expect($media->file_name)->toBe('x-pic.jpg')
+        ->and($media->getPath())->toBeFile();
+});
+
 test('the file name can be modified using custom sanitizing and default file namer', function () {
     $media = $this->testModel
         ->addMedia($this->getTestJpg())

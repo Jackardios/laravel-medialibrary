@@ -381,13 +381,14 @@ class FileAdder
     public function toMediaCollection(string $collectionName = 'default', string $diskName = ''): Media
     {
         try {
-            $sanitizedFileName = ($this->fileNameSanitizer)($this->fileName);
-            $fileName = app(config('media-library.file_namer'))->originalFileName($sanitizedFileName);
-            $this->fileName = $this->appendExtension($fileName, pathinfo($sanitizedFileName, PATHINFO_EXTENSION));
-
+            // Sanitizes and names the file itself.
             if ($this->file instanceof RemoteFile) {
                 return $this->toMediaCollectionFromRemote($collectionName, $diskName);
             }
+
+            $sanitizedFileName = ($this->fileNameSanitizer)($this->fileName);
+            $fileName = app(config('media-library.file_namer'))->originalFileName($sanitizedFileName);
+            $this->fileName = $this->appendExtension($fileName, pathinfo($sanitizedFileName, PATHINFO_EXTENSION));
 
             if ($this->isInstanceOfTemporaryUploadModel($this->file)) {
                 return $this->toMediaCollectionFromTemporaryUpload($collectionName, $diskName, $this->fileName);
