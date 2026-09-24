@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Support\Facades\File;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\FileAdder;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -202,4 +204,16 @@ it('refuses to copy media whose original is missing', function () {
         ->toThrow(FileDoesNotExist::class);
 
     expect(Media::count())->toBe(1);
+});
+
+it('removes its temporary directory when copying fails', function () {
+    $temporaryDirectory = $this->getTempDirectory('copy-temp');
+    config()->set('media-library.temporary_directory_path', $temporaryDirectory);
+
+    $media = TestModel::create(['name' => 'test'])->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection();
+
+    expect(fn () => $media->copy(TestModel::create(['name' => 'another-test']), 'default', 'missing-disk'))
+        ->toThrow(DiskDoesNotExist::class);
+
+    expect(File::directories($temporaryDirectory))->toBe([]);
 });

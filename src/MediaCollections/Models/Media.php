@@ -540,33 +540,33 @@ class Media extends Model implements Attachable, Htmlable, Responsable
     ): self {
         $temporaryDirectory = TemporaryDirectory::create();
 
-        $temporaryFile = $temporaryDirectory->path('/').DIRECTORY_SEPARATOR.$this->file_name;
+        try {
+            $temporaryFile = $temporaryDirectory->path('/').DIRECTORY_SEPARATOR.$this->file_name;
 
-        /** @var Filesystem $filesystem */
-        $filesystem = app(Filesystem::class);
+            /** @var Filesystem $filesystem */
+            $filesystem = app(Filesystem::class);
 
-        $filesystem->copyFromMediaLibrary($this, $temporaryFile);
+            $filesystem->copyFromMediaLibrary($this, $temporaryFile);
 
-        $fileAdder = $model
-            ->addMedia($temporaryFile)
-            ->usingName($this->name)
-            ->setOrder($this->order_column)
-            ->withManipulations($this->manipulations)
-            ->withCustomProperties($this->custom_properties);
+            $fileAdder = $model
+                ->addMedia($temporaryFile)
+                ->usingName($this->name)
+                ->setOrder($this->order_column)
+                ->withManipulations($this->manipulations)
+                ->withCustomProperties($this->custom_properties);
 
-        if ($fileName !== '') {
-            $fileAdder->usingFileName($fileName);
+            if ($fileName !== '') {
+                $fileAdder->usingFileName($fileName);
+            }
+
+            if ($fileAdderCallback instanceof Closure) {
+                $fileAdder = $fileAdderCallback($fileAdder);
+            }
+
+            return $fileAdder->toMediaCollection($collectionName, $diskName);
+        } finally {
+            $temporaryDirectory->delete();
         }
-
-        if ($fileAdderCallback instanceof Closure) {
-            $fileAdder = $fileAdderCallback($fileAdder);
-        }
-
-        $newMedia = $fileAdder->toMediaCollection($collectionName, $diskName);
-
-        $temporaryDirectory->delete();
-
-        return $newMedia;
     }
 
     public function responsiveImages(string $conversionName = ''): RegisteredResponsiveImages
