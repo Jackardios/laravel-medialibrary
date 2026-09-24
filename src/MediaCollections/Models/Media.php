@@ -513,7 +513,7 @@ class Media extends Model implements Attachable, Htmlable, Responsable
 
     public function hasResponsiveImages(string $conversionName = ''): bool
     {
-        return count($this->getResponsiveImageUrls($conversionName)) > 0;
+        return $this->responsiveImages($conversionName)->files->isNotEmpty();
     }
 
     public function getSrcset(string $conversionName = ''): string

@@ -35,15 +35,29 @@ class ResponsiveImage
 
     public function url(): string
     {
-        $conversionName = '';
+        return $this->urlIn(static::directoryUrl($this->media, $this->generatedFor()));
+    }
 
-        if ($this->generatedFor() !== 'media_library_original') {
-            $conversionName = $this->generatedFor();
-        }
+    /**
+     * The url of the directory holding the responsive images generated for the conversion.
+     *
+     * @internal
+     */
+    public static function directoryUrl(Media $media, string $generatedFor): string
+    {
+        $conversionName = $generatedFor === 'media_library_original' ? '' : $generatedFor;
 
-        $urlGenerator = UrlGeneratorFactory::createForMedia($this->media, $conversionName);
+        return UrlGeneratorFactory::createForMedia($media, $conversionName)->getResponsiveImagesDirectoryUrl();
+    }
 
-        $url = $urlGenerator->getResponsiveImagesDirectoryUrl().rawurlencode($this->fileName);
+    /**
+     * The url of this image in the given responsive images directory url.
+     *
+     * @internal
+     */
+    public function urlIn(string $directoryUrl): string
+    {
+        $url = $directoryUrl.rawurlencode($this->fileName);
 
         if (config('media-library.version_urls') === true && $this->media->updated_at !== null) {
             $url = "{$url}?v={$this->media->updated_at->timestamp}";

@@ -11,6 +11,9 @@ class RegisteredResponsiveImages
 
     public string $generatedFor;
 
+    /** Built once: every file of the set lies in the same directory. */
+    protected ?string $directoryUrl = null;
+
     public function __construct(protected Media $media, string $conversionName = '')
     {
         $this->generatedFor = $conversionName === ''
@@ -25,7 +28,7 @@ class RegisteredResponsiveImages
     public function getUrls(): array
     {
         return $this->files
-            ->map(fn (ResponsiveImage $responsiveImage) => $responsiveImage->url())
+            ->map(fn (ResponsiveImage $responsiveImage) => $this->urlOf($responsiveImage))
             ->values()
             ->toArray();
     }
@@ -38,7 +41,7 @@ class RegisteredResponsiveImages
     public function getSrcset(): string
     {
         $filesSrcset = $this->files
-            ->map(fn (ResponsiveImage $responsiveImage) => "{$responsiveImage->url()} {$responsiveImage->width()}w")
+            ->map(fn (ResponsiveImage $responsiveImage) => "{$this->urlOf($responsiveImage)} {$responsiveImage->width()}w")
             ->implode(', ');
 
         $shouldAddPlaceholderSvg = config('media-library.responsive_images.use_tiny_placeholders')
@@ -49,6 +52,13 @@ class RegisteredResponsiveImages
         }
 
         return $filesSrcset;
+    }
+
+    protected function urlOf(ResponsiveImage $responsiveImage): string
+    {
+        $this->directoryUrl ??= ResponsiveImage::directoryUrl($this->media, $this->generatedFor);
+
+        return $responsiveImage->urlIn($this->directoryUrl);
     }
 
     public function getPlaceholderSvg(): ?string

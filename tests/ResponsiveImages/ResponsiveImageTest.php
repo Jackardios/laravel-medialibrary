@@ -1,6 +1,7 @@
 <?php
 
 use Carbon\Carbon;
+use Spatie\MediaLibrary\Support\UrlGenerator\DefaultUrlGenerator;
 
 beforeEach(function () {
     $this->fileName = 'test';
@@ -169,4 +170,27 @@ test('deleting the last responsive image of a conversion removes its entry', fun
     $media->responsiveImages('thumb')->files->first()->delete();
 
     expect($media->fresh()->responsive_images)->not->toHaveKey('thumb');
+});
+
+test('the urls of a set of responsive images share one url generator', function () {
+    $media = $this->testModelWithResponsiveImages
+        ->addMedia($this->getTestJpg())
+        ->withResponsiveImages()
+        ->toMediaCollection()
+        ->fresh();
+
+    $urlGenerators = 0;
+    app()->beforeResolving(DefaultUrlGenerator::class, function () use (&$urlGenerators) {
+        $urlGenerators++;
+    });
+
+    expect($media->hasResponsiveImages())->toBeTrue()
+        ->and($urlGenerators)->toBe(0);
+
+    expect($media->getResponsiveImageUrls())->toHaveCount(3)
+        ->and($urlGenerators)->toBe(1);
+
+    $media->getSrcset();
+
+    expect($urlGenerators)->toBe(2);
 });
