@@ -132,6 +132,17 @@ it('treats allowlist entries case-insensitively', function () {
     expect($adder->defaultSanitizer('photo.png'))->toEqual('photo.png');
 });
 
+it('accepts an upper case extension of a file inside the allowlist', function () {
+    config()->set('media-library.allowed_extensions', ['jpg']);
+
+    $media = $this->testModel
+        ->addMedia($this->getTestJpg())
+        ->usingFileName('PHOTO.JPG')
+        ->toMediaCollection();
+
+    expect($media->file_name)->toBe('PHOTO.JPG');
+});
+
 it('rejects files without an extension when an allowlist is configured', function () {
     config()->set('media-library.allowed_extensions', ['jpg']);
 
