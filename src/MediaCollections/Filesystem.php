@@ -3,6 +3,7 @@
 namespace Spatie\MediaLibrary\MediaCollections;
 
 use Illuminate\Contracts\Filesystem\Factory;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\MediaLibrary\Conversions\ConversionCollection;
@@ -400,7 +401,13 @@ class Filesystem
                 continue;
             }
 
-            $disk->move($oldFile, $newFile);
+            // The file keeps its old name, so the conversion is missing until it is generated again.
+            // The update under way saves the mark.
+            if (! $disk->move($oldFile, $newFile)) {
+                $generatedConversions = $media->generated_conversions;
+                Arr::set($generatedConversions, $conversion->getName(), false);
+                $media->generated_conversions = $generatedConversions;
+            }
         }
     }
 

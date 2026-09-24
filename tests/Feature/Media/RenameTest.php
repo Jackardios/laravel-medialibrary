@@ -216,6 +216,20 @@ it('does not rename the media when its file cannot be moved', function () {
         ->and($media->fresh()->getPath())->toBeFile();
 });
 
+it('records a conversion that cannot be renamed as not generated', function () {
+    $media = $this->testModelWithConversion->addMedia($this->getTestJpg())->toMediaCollection();
+
+    // A directory where the renamed conversion should go makes its move fail.
+    mkdir($this->getMediaDirectory("{$media->id}/conversions/renamed-thumb.jpg"));
+
+    $media->file_name = 'renamed.jpg';
+    $media->save();
+
+    expect($media->fresh()->file_name)->toBe('renamed.jpg')
+        ->and($media->fresh()->hasGeneratedConversion('thumb'))->toBeFalse()
+        ->and($media->fresh()->hasGeneratedConversion('keep_original_format'))->toBeTrue();
+});
+
 class TestModelWithConversionsOfTwoCollections extends TestModel
 {
     public function registerMediaConversions(?Media $media = null): void
