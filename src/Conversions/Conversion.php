@@ -259,7 +259,7 @@ class Conversion
             }
         }
 
-        if ($manipulationArgument = Arr::get($this->manipulations->getManipulationArgument('format'), 0)) {
+        if ($manipulationArgument = $this->manipulations->getFirstManipulationArgument('format')) {
             return $manipulationArgument;
         }
 

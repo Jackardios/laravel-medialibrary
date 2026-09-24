@@ -51,13 +51,7 @@ class Manipulations
 
     public function getFirstManipulationArgument(string $manipulationName): null|string|int
     {
-        $manipulationArgument = $this->getManipulationArgument($manipulationName);
-
-        if (! is_array($manipulationArgument)) {
-            return null;
-        }
-
-        return $manipulationArgument[0];
+        return Arr::first(Arr::wrap($this->getManipulationArgument($manipulationName)));
     }
 
     public function isEmpty(): bool

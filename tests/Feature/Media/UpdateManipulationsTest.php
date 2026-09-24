@@ -183,3 +183,25 @@ it('restores the model event dispatcher when regenerating after a manipulation c
 
     expect($otherMedia->uuid)->not->toBeNull();
 });
+
+it('names the conversion after a format stored without an array', function () {
+    $testModelClass = new class extends TestModel
+    {
+        public function registerMediaConversions(?Media $media = null): void
+        {
+            $this->addMediaConversion('update_test')->nonQueued();
+        }
+    };
+
+    $testModel = $testModelClass::find($this->testModel->id);
+
+    $media = $testModel->addMedia($this->getTestJpg())->toMediaCollection('images');
+
+    $media->manipulations = [
+        'update_test' => ['format' => 'png'],
+    ];
+    $media->save();
+
+    expect($media->getPath('update_test'))->toEndWith('-update_test.png')
+        ->and(mime_content_type($media->getPath('update_test')))->toBe('image/png');
+});

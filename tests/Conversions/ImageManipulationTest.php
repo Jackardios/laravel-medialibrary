@@ -140,3 +140,11 @@ it('casts a numeric string for an int-backed enum', function () {
 it('leaves parameters of unknown manipulations untouched', function () {
     expect((new Manipulations)->transformParameters('doesNotExist', ['contain']))->toBe(['contain']);
 });
+
+it('gets the first argument of a manipulation stored with or without an array', function (mixed $argument) {
+    expect((new Manipulations(['quality' => $argument]))->getFirstManipulationArgument('quality'))->toBe('40');
+})->with([
+    'list' => [['40']],
+    'named' => [['quality' => '40']],
+    'single value' => ['40'],
+]);
