@@ -19,6 +19,14 @@ it('refuses a url whose host resolves to a private or reserved address', functio
     'unique local ipv6' => 'http://[fd00::1]/image.jpg',
     'unspecified' => 'http://0.0.0.0/image.jpg',
     'multicast' => 'http://224.0.0.1/image.jpg',
+    'ipv6 multicast' => 'http://[ff02::1]/image.jpg',
+    'nat64 of a private address' => 'http://[64:ff9b::a00:1]/image.jpg',
+    'local-use nat64' => 'http://[64:ff9b:1::808:808]/image.jpg',
+    'siit of a private address' => 'http://[::ffff:0:a00:1]/image.jpg',
+    'ipv4-compatible loopback' => 'http://[::7f00:1]/image.jpg',
+    'site-local ipv6' => 'http://[fec0::1]/image.jpg',
+    'ipv6 documentation' => 'http://[3fff::1]/image.jpg',
+    'srv6' => 'http://[5f00::1]/image.jpg',
 ]);
 
 it('returns the address to connect to for a public host', function (string $url, string $address) {
@@ -26,6 +34,7 @@ it('returns the address to connect to for a public host', function (string $url,
 })->with([
     'ipv4' => ['https://93.184.215.14/image.jpg', '93.184.215.14'],
     'ipv6' => ['https://[2606:4700::1111]/image.jpg', '2606:4700::1111'],
+    'nat64 of a public address' => ['https://[64:ff9b::808:808]/image.jpg', '64:ff9b::808:808'],
 ]);
 
 it('does not check a trusted host', function (string $trustedHost) {
