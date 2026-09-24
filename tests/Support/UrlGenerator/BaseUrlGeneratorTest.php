@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Storage;
 use Spatie\MediaLibrary\Conversions\ConversionCollection;
 use Spatie\MediaLibrary\Support\PathGenerator\DefaultPathGenerator;
 use Spatie\MediaLibrary\Support\UrlGenerator\DefaultUrlGenerator;
@@ -66,6 +67,32 @@ it('correctly encodes percent signs in filenames when getting url', function () 
 
     expect($media->getUrl())->toContain('IMG_5405%2520copy.jpg');
     expect($media->getPath())->toContain('IMG_5405%20copy.jpg');
+});
+
+it('encodes file names on an s3 disk with a configured base url', function () {
+    // Laravel appends the path to a configured `url` as is (S3 behind a CDN, R2, ...), while
+    // without one the S3 client builds and encodes the object url itself.
+    config()->set('filesystems.disks.cdn', [
+        'driver' => 's3',
+        'url' => 'https://cdn.example.com',
+        'key' => 'key',
+        'secret' => 'secret',
+        'region' => 'us-east-1',
+        'bucket' => 'bucket',
+    ]);
+
+    $media = $this->testModel->addMedia($this->getTestFilesDirectory('test_.jpg'))
+        ->usingFileName('IMG_5405%20café.jpg')
+        ->toMediaCollection();
+
+    $media->disk = 'cdn';
+
+    expect($media->getUrl())->toBe("https://cdn.example.com/{$media->id}/IMG_5405%2520caf%C3%A9.jpg");
+
+    config()->set('filesystems.disks.cdn.url', null);
+    Storage::forgetDisk('cdn');
+
+    expect($media->getUrl())->toBe("https://bucket.s3.amazonaws.com/{$media->id}/IMG_5405%2520caf%C3%A9.jpg");
 });
 
 it('falls back to the originals disk for conversion urls when conversions_disk is null', function () {

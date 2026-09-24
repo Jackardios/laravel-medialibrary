@@ -76,9 +76,11 @@ abstract class BaseUrlGenerator implements UrlGenerator
 
     protected function getUrlEncodedPathRelativeToRoot(): string
     {
-        $driver = config("filesystems.disks.{$this->getDiskName()}.driver");
+        $diskConfig = config("filesystems.disks.{$this->getDiskName()}");
 
-        if ($driver !== 'local') {
+        // Laravel appends the path as is to local disks and to any disk with a configured `url`
+        // (e.g. S3 behind a CDN). Without one, the S3 client builds and encodes the url itself.
+        if (($diskConfig['driver'] ?? null) !== 'local' && empty($diskConfig['url'])) {
             return $this->getPathRelativeToRoot();
         }
 
