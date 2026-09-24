@@ -177,6 +177,46 @@ it('will remove responsive images when using custom file namer', function () {
     expect(File::exists($this->getMediaDirectory($media->getKey())))->toBeFalse();
 });
 
+it('removes the responsive images of the original with the file based remover', function () {
+    config(['media-library.file_remover_class' => FileBaseFileRemover::class]);
+
+    $media = $this->testModelWithResponsiveImages->addMedia($this->getTestJpg())
+        ->usingName('Holiday picture')
+        ->withResponsiveImages()
+        ->toMediaCollection()
+        ->fresh();
+
+    $responsiveImagesDirectory = $this->getMediaDirectory("{$media->id}/responsive-images");
+    expect($media->responsive_images)->toHaveKeys(['media_library_original', 'thumb']);
+
+    $media->delete();
+
+    expect(File::files($responsiveImagesDirectory))->toBe([]);
+});
+
+it('removes the responsive images of a renamed media with the file based remover', function () {
+    config(['media-library.file_remover_class' => FileBaseFileRemover::class]);
+
+    $media = $this->testModelWithResponsiveImages->addMedia($this->getTestJpg())->toMediaCollection()->fresh();
+
+    $media->file_name = 'renamed.jpg';
+    $media->save();
+
+    $media->fresh()->delete();
+
+    expect(File::files($this->getMediaDirectory("{$media->id}/responsive-images")))->toBe([]);
+});
+
+it('removes the responsive images of conversions the model no longer registers', function () {
+    $media = $this->testModelWithResponsiveImages->addMedia($this->getTestJpg())->toMediaCollection();
+
+    Media::whereKey($media->id)->update(['model_type' => TestModel::class]);
+
+    Media::find($media->id)->delete();
+
+    expect($this->getMediaDirectory("{$media->id}/responsive-images"))->not->toBeDirectory();
+});
+
 it('will not remove the files when should delete preserving media returns true', function () {
     $testModelClass = new class extends TestModel
     {
