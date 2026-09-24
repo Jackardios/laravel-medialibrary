@@ -114,8 +114,15 @@ class ResponsiveImage
         app(Filesystem::class)->removeFile($this->media, $fullPath, $this->media->conversions_disk);
 
         $responsiveImages = $this->media->responsive_images;
+        $conversionName = $this->generatedFor();
 
-        unset($responsiveImages[$this->generatedFor()]);
+        $urls = array_values(array_diff($responsiveImages[$conversionName]['urls'] ?? [], [$this->fileName]));
+
+        if ($urls === []) {
+            unset($responsiveImages[$conversionName]);
+        } else {
+            $responsiveImages[$conversionName]['urls'] = $urls;
+        }
 
         $this->media->responsive_images = $responsiveImages;
 

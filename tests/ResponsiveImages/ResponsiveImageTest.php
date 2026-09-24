@@ -143,3 +143,30 @@ it('can handle file names with underscore', function () {
 
     expect($media->getResponsiveImageUrls('non-existing-conversion'))->toBe([]);
 });
+
+test('deleting a responsive image keeps the other images of its conversion', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->withResponsiveImages()->toMediaCollection()->fresh();
+
+    $kept = $media->responsive_images['media_library_original']['urls'];
+    $deleted = array_shift($kept);
+
+    $media->responsiveImages()->files->first()->delete();
+
+    $directory = $this->getMediaDirectory("{$media->id}/responsive-images");
+
+    expect($media->fresh()->responsive_images['media_library_original']['urls'])->toBe($kept)
+        ->and($media->fresh()->responsive_images['media_library_original'])->toHaveKey('base64svg')
+        ->and("{$directory}/{$deleted}")->not->toBeFile();
+
+    foreach ($kept as $fileName) {
+        expect("{$directory}/{$fileName}")->toBeFile();
+    }
+});
+
+test('deleting the last responsive image of a conversion removes its entry', function () {
+    $media = $this->testModelWithResponsiveImages->addMedia($this->getTestJpg())->toMediaCollection()->fresh();
+
+    $media->responsiveImages('thumb')->files->first()->delete();
+
+    expect($media->fresh()->responsive_images)->not->toHaveKey('thumb');
+});
