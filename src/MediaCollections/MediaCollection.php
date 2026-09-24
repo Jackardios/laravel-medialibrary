@@ -37,9 +37,10 @@ class MediaCollection
     public function __construct(
         public string $name
     ) {
-        $this->mediaConversionRegistrations = function () {};
+        // Static, so a collection is not a cycle the garbage collector has to find.
+        $this->mediaConversionRegistrations = static function () {};
 
-        $this->acceptsFile = fn () => true;
+        $this->acceptsFile = static fn () => true;
     }
 
     public static function create($name): self

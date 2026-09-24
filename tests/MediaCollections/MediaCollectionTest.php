@@ -82,3 +82,12 @@ it('moves media on change', function () {
     $this->assertFileDoesNotExist($oldMediaPath);
     expect($mediaItem->getPath())->toBeFile();
 });
+
+it('is freed as soon as it is no longer used', function () {
+    $mediaCollection = MediaCollection::create('images');
+    $reference = WeakReference::create($mediaCollection);
+
+    unset($mediaCollection);
+
+    expect($reference->get())->toBeNull();
+});
