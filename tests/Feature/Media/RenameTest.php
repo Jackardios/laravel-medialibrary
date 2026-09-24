@@ -1,9 +1,14 @@
 <?php
 
+use Illuminate\Filesystem\FilesystemAdapter;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\MediaCannotBeUpdated;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\MediaLibraryServiceProvider;
 use Spatie\MediaLibrary\Tests\TestSupport\TestFileNamer;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestCustomMediaWithCustomKeyName;
+use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
 
 it('will rename the file if it is changed on the media object', function () {
     $testFile = $this->getTestFilesDirectory('test.jpg');
@@ -209,4 +214,43 @@ it('does not rename the media when its file cannot be moved', function () {
 
     expect($media->fresh()->file_name)->toBe('test.jpg')
         ->and($media->fresh()->getPath())->toBeFile();
+});
+
+class TestModelWithConversionsOfTwoCollections extends TestModel
+{
+    public function registerMediaConversions(?Media $media = null): void
+    {
+        $this->addMediaConversion('thumb')->width(50)->nonQueued();
+        $this->addMediaConversion('banner')->width(80)->performOnCollections('banners')->nonQueued();
+    }
+}
+
+class DiskRecordingExistsChecks extends FilesystemAdapter
+{
+    public static array $checked = [];
+
+    public function exists($path)
+    {
+        static::$checked[] = $path;
+
+        return parent::exists($path);
+    }
+}
+
+it('renames the conversions of its collection without looking the media up again', function () {
+    $media = TestModelWithConversionsOfTwoCollections::first()->addMedia($this->getTestJpg())->toMediaCollection();
+
+    $disk = Storage::disk('public');
+    Storage::set('public', new DiskRecordingExistsChecks($disk->getDriver(), $disk->getAdapter(), $disk->getConfig()));
+    DiskRecordingExistsChecks::$checked = [];
+
+    DB::enableQueryLog();
+
+    $media->file_name = 'renamed.jpg';
+    $media->save();
+
+    expect(collect(DB::getQueryLog())->pluck('query')->filter(fn (string $query) => str_starts_with($query, 'select')))->toBeEmpty()
+        ->and(DiskRecordingExistsChecks::$checked)->toContain("{$media->id}/conversions/test-thumb.jpg")
+        ->and(DiskRecordingExistsChecks::$checked)->not->toContain("{$media->id}/conversions/test-banner.jpg")
+        ->and($this->getMediaDirectory("{$media->id}/conversions/renamed-thumb.jpg"))->toBeFile();
 });

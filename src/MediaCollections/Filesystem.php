@@ -378,23 +378,25 @@ class Filesystem
 
     protected function renameConversionFiles(Media $media): void
     {
-        $mediaWithOldFileName = config('media-library.media_model')::find($media->getKey());
-        $mediaWithOldFileName->file_name = $mediaWithOldFileName->getOriginal('file_name');
+        $mediaWithOldFileName = clone $media;
+        $mediaWithOldFileName->file_name = $media->getOriginal('file_name');
 
         $conversionDirectory = $this->getConversionDirectory($media);
+        $disk = $this->filesystem->disk($media->conversions_disk);
 
-        $conversionCollection = ConversionCollection::createForMedia($media);
+        // Only the conversions of the media's collection have files, of the one it had if that changes too.
+        $collectionNames = array_unique([$media->collection_name, $media->getOriginal('collection_name') ?? $media->collection_name]);
 
-        foreach ($media->getMediaConversionNames() as $conversionName) {
-            $conversion = $conversionCollection->getByName($conversionName);
+        foreach (ConversionCollection::createForMedia($media) as $conversion) {
+            if (! array_filter($collectionNames, fn (string $collectionName) => $conversion->shouldBePerformedOn($collectionName))) {
+                continue;
+            }
 
             $oldFile = $conversionDirectory.$conversion->getConversionFile($mediaWithOldFileName);
             $newFile = $conversionDirectory.$conversion->getConversionFile($media);
 
-            $disk = $this->filesystem->disk($media->conversions_disk);
-
             // A media conversion file might be missing, waiting to be generated, failed etc.
-            if (! $disk->exists($oldFile)) {
+            if ($oldFile === $newFile || ! $disk->exists($oldFile)) {
                 continue;
             }
 
