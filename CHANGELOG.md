@@ -15,7 +15,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 
 - `addMediaFromUrl` refuses urls whose host resolves to a private or reserved address (loopback, private networks, link-local addresses such as cloud metadata services, and more), including every redirect, and urls whose host is not written in ascii (punycode is accepted). The downloaders connect to the address they checked, without a proxy, and stop at `max_file_size` while downloading. New config keys `media_downloader_blocks_private_networks` (`MEDIA_DOWNLOADER_BLOCKS_PRIVATE_NETWORKS`, default `true`) and `media_downloader_trusted_hosts`; new `Spatie\MediaLibrary\Downloaders\UrlGuard` for custom downloaders.
 - Upstream's blocklist of dangerous file names: a segment such as `.php`, `.phtml`, `.phar`, `.htaccess`, `.cgi`, `.asp` or `.jsp` anywhere in the name throws `FileNameNotAllowed`; new config keys `disallowed_extensions` and `allowed_extensions` (upstream 11.23.0). The fork also refuses `.user.ini` and `web.config`.
-- The default file name sanitizer also replaces `: * ? " < > |`, strips trailing dots and spaces, and prefixes reserved Windows device names (`CON`, `NUL`, `COM1`, `LPT1`, ...) with `_`.
+- The default file name sanitizer also replaces `: * ? " < > |` and invalid utf-8, strips trailing dots and spaces, and prefixes reserved Windows device names (`CON`, `NUL`, `COM1`, `LPT¹`, `CONIN$`, ...) with `_`.
 - The values of the extra attributes of an image tag (`img(extraAttributes: [...])`, `attributes()`) are escaped.
 - `zip_filename_prefix` can no longer climb out of the zip with `..` (upstream 11.23.1).
 - The file name of a download or zip response is escaped in `Content-Disposition`; a name that is not ascii is also sent in utf-8 (`filename*`).
@@ -44,12 +44,21 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - Responsive images are replaced only once the new set has been generated, so a failure keeps the previous set; the previous files are removed afterwards. Removing or renaming them no longer touches the images of conversions whose name starts with the same text, and deleting one responsive image keeps the others of its conversion.
 - Renamed responsive images are named through the file namer and are removed when the media is deleted.
 - `addMediaFromDisk` on the same disk keeps the source file when the copy fails, and sanitizes and names the file once.
-- A conversion that fails while the media is added still enforces the collection size limit (`singleFile()`).
+- A conversion that fails while the media is added still enforces the collection size limit (`singleFile()`), once a transaction around it is committed. A media whose file could not be written is not kept.
+- `Media::copy()` and `move()` to a model that is saved afterwards add the media once the model is created, and remove their temporary copy.
+- Media conversions stored on the media with a single value (`['thumb' => ['format' => 'png']]`) or a named one name the file after that format; a quality stored that way applies to its responsive images.
+- `keepOriginalImageFormat()` keeps the format of avif images.
+- A conversion file that cannot be renamed along with its media is marked as not generated.
+- Responsive images that end up with no widths are recorded as such before the previous files are removed.
+- `media-library:regenerate` performs deferred conversions with their media, also when another media fails, and `--only` limits the responsive images regenerated with `--trust-database`.
+- The `HttpFacadeDownloader` refuses a response that is not successful (such as a 300 without a location). The `DefaultDownloader` sends the credentials of a url (`user:password@host`).
+- Media stored with `responsive_images` set to `null` can be deleted.
+- The responsive images of a media are versioned whenever `version_urls` is truthy.
 - Regenerating after a manipulation change restores the model event dispatcher when a conversion fails (Octane, queue workers).
 - A conversion without manipulations no longer takes away the original that later conversions and responsive images use.
 - Conversion names resolve to the conversion of the media's collection when several collections register the same name.
 - Base64 data uris with parameters (`data:image/png;name=a.png;base64,...`) are accepted.
-- Every file in a media zip gets a unique name, also when a file is already named like a numbered duplicate.
+- Every file in a media zip gets a unique name, also when a file is already named like a numbered duplicate, after the zip has replaced the characters it does not allow, and regardless of case.
 - The temporary directories of responsive image generation and `Media::copy()` are removed when they fail.
 - Conversion existence checks work with Windows separators and roots with a trailing slash.
 
@@ -59,6 +68,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - A srcset builds one url generator for the whole set instead of one per image; `hasResponsiveImages()` no longer builds urls.
 - A media collection is no longer a reference cycle.
 - Renaming a media checks only the conversions of its collection and no longer loads the media again.
+- Numbering duplicate names in a media zip is linear: 5000 files of the same name took 2.3 s. Deleting a media removes each responsive image of its original once instead of twice.
 
 ### Removed
 
