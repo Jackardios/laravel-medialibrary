@@ -23,11 +23,15 @@ class HttpFacadeDownloader implements Downloader
         $temporaryFile = tempnam(sys_get_temp_dir(), 'media-library');
 
         try {
-            Http::withUserAgent('Spatie MediaLibrary')
-                ->throw(fn () => throw UnreachableUrl::create($url))
+            $response = Http::withUserAgent('Spatie MediaLibrary')
                 ->setHandler($this->handler($url))
                 ->sink($temporaryFile)
                 ->get($url);
+
+            // A redirect without a location is not followed and not the file either.
+            if (! $response->successful()) {
+                throw UnreachableUrl::create($url);
+            }
         } catch (ConnectionException|TooManyRedirectsException) {
             @unlink($temporaryFile);
 

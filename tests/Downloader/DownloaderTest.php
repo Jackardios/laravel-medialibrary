@@ -124,4 +124,6 @@ it('throws when the url cannot be downloaded', function (string $downloader, str
 })->with('downloaders')->with([
     'not found' => '/files/missing.jpg',
     'redirect loop' => '/redirect-loop',
+    'redirect without a location' => '/status?code=300',
+    'not modified' => '/status?code=304',
 ]);

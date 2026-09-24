@@ -43,6 +43,12 @@ switch (true) {
 
         return;
 
+    case $path === '/status':
+        http_response_code((int) $query['code']);
+        echo 'the body of the response';
+
+        return;
+
     case $path === '/host':
         echo $_SERVER['HTTP_HOST'];
 
