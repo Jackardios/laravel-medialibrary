@@ -1,7 +1,10 @@
 <?php
 
 use Carbon\Carbon;
+use Spatie\MediaLibrary\ResponsiveImages\ResponsiveImageGenerator;
+use Spatie\MediaLibrary\ResponsiveImages\WidthCalculator\WidthCalculator;
 use Spatie\MediaLibrary\Support\UrlGenerator\DefaultUrlGenerator;
+use Spatie\MediaLibrary\Tests\TestSupport\WidthCalculators\FixedWidthCalculator;
 
 beforeEach(function () {
     $this->fileName = 'test';
@@ -170,6 +173,20 @@ test('deleting the last responsive image of a conversion removes its entry', fun
     $media->responsiveImages('thumb')->files->first()->delete();
 
     expect($media->fresh()->responsive_images)->not->toHaveKey('thumb');
+});
+
+test('deleting responsive images without files removes their entry', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->withResponsiveImages()->toMediaCollection();
+
+    // A width calculator that returns no widths leaves an entry without files.
+    app()->bind(WidthCalculator::class, fn () => new FixedWidthCalculator([]));
+    app(ResponsiveImageGenerator::class)->generateResponsiveImages($media->fresh());
+
+    expect($media->fresh()->responsive_images['media_library_original']['urls'])->toBe([]);
+
+    $media->fresh()->responsiveImages()->delete();
+
+    expect($media->fresh()->responsive_images)->not->toHaveKey('media_library_original');
 });
 
 test('the urls of a set of responsive images share one url generator', function () {
