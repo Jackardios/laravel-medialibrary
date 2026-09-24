@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Spatie\MediaLibrary\Conversions\ConversionCollection;
+use Spatie\MediaLibrary\Conversions\ImageGenerators\Avif;
 use Spatie\MediaLibrary\Conversions\Manipulations;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
@@ -41,6 +42,21 @@ it('can create a derived version for an image keeping the original format', func
         ->toMediaCollection('images');
 
     $this->assertFileExists($this->getMediaDirectory($media->id.'/conversions/test-keep_original_format.png'));
+});
+
+it('can create a derived version for an avif image keeping the original format', function () {
+    if (! (new Avif)->requirementsAreInstalled()) {
+        $this->markTestSkipped('Skipping avif test because requirements to run it are not met');
+    }
+
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestAvif())
+        ->toMediaCollection('images');
+
+    $conversion = $this->getMediaDirectory($media->id.'/conversions/test-keep_original_format.avif');
+
+    expect($conversion)->toBeFile()
+        ->and(mime_content_type($conversion))->toBe('image/avif');
 });
 
 it('will use the name of the conversion for naming the converted file', function () {
