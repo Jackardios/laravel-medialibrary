@@ -335,6 +335,18 @@ it('keeps the source file when natively copying it on the same disk fails', func
         ->and(Media::count())->toBe(0);
 });
 
+it('does not keep the media when writing its file throws', function () {
+    config()->set('filesystems.disks.public.throw', true);
+
+    // A directory where the file goes makes the write fail (media id 1).
+    mkdir($this->getMediaDirectory('1/test.jpg'), 0777, true);
+
+    expect(fn () => $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection())
+        ->toThrow(Exception::class);
+
+    expect(Media::count())->toBe(0);
+});
+
 it('can add a remote file with a space in the name to the media library', function () {
     config()->set('media-library.media_downloader_trusted_hosts', ['127.0.0.1']);
 

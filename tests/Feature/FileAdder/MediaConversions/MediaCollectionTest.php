@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Spatie\MediaLibrary\Conversions\Events\ConversionWillStartEvent;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileUnacceptableForCollection;
@@ -301,6 +302,30 @@ test('a single file collection keeps only the new media when one of its conversi
         ->toThrow(RuntimeException::class, 'conversion failed');
 
     expect($model->fresh()->getMedia('images')->pluck('file_name')->all())->toBe(['new.jpg']);
+});
+
+test('a single file collection keeps its media when adding a media whose conversion fails is rolled back', function () {
+    $testModel = new class extends TestModelWithConversion
+    {
+        public function registerMediaCollections(): void
+        {
+            $this
+                ->addMediaCollection('images')
+                ->singleFile();
+        }
+    };
+
+    $model = $testModel::create(['name' => 'testmodel']);
+
+    $media = $model->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images');
+
+    Event::listen(ConversionWillStartEvent::class, fn () => throw new RuntimeException('conversion failed'));
+
+    expect(fn () => DB::transaction(fn () => $model->addMedia($this->getTestJpg())->preservingOriginal()->usingFileName('new.jpg')->toMediaCollection('images')))
+        ->toThrow(RuntimeException::class, 'conversion failed');
+
+    expect($model->fresh()->getMedia('images')->pluck('file_name')->all())->toBe(['test.jpg'])
+        ->and($media->getPath())->toBeFile();
 });
 
 test('if the only keeps latest method is specified it will delete all other media and will only keep the latest n ones', function () {

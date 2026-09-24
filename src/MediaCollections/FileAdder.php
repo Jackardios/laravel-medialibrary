@@ -678,21 +678,19 @@ class FileAdder
                     $addedMediaSuccessfully = $this->filesystem->add($fileAdder->pathToFile, $media, $fileAdder->fileName);
                 }
             } catch (Throwable $exception) {
-                // When a non-queued conversion fails, the file was stored and the media added:
-                // the collection still has to keep to its size limit.
-                if (Storage::disk($media->disk)->exists($media->getPathRelativeToRoot())) {
-                    $this->keepCollectionSizeLimit($model, $media);
+                if (rescue(fn () => Storage::disk($media->disk)->fileExists($media->getPathRelativeToRoot()), false, false)) {
+                    // A non-queued conversion failed after the file was stored, so the media was added and
+                    // the collection keeps to its size limit, unless a transaction around it is rolled back.
+                    $media->getConnection()->afterCommit(fn () => $this->keepCollectionSizeLimit($model, $media));
+                } else {
+                    $this->discardMedia($model, $media);
                 }
 
                 throw $exception;
             }
 
             if (! $addedMediaSuccessfully) {
-                $media->forceDelete();
-
-                if ($model->relationLoaded('media')) {
-                    $model->setRelation('media', $model->media->reject(fn (Media $item) => $item->is($media)));
-                }
+                $this->discardMedia($model, $media);
 
                 throw DiskCannotBeAccessed::create($media->disk);
             }
@@ -728,6 +726,15 @@ class FileAdder
             $this->keepCollectionSizeLimit($model, $media);
         } finally {
             $fileAdder->removeTemporaryFile();
+        }
+    }
+
+    protected function discardMedia(HasMedia $model, Media $media): void
+    {
+        $media->forceDelete();
+
+        if ($model->relationLoaded('media')) {
+            $model->setRelation('media', $model->media->reject(fn (Media $item) => $item->is($media)));
         }
     }
 
