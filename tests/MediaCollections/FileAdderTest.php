@@ -36,7 +36,13 @@ it('sanitizes file names that are not valid on windows', function (string $fileN
     'device name without extension' => ['nul', '_nul'],
     'numbered port' => ['com9.jpg', '_com9.jpg'],
     'name that only starts like a device name' => ['console.jpg', 'console.jpg'],
+    'port zero' => ['LPT0.jpg', '_LPT0.jpg'],
+    'port with a superscript number' => ['COM¹.jpg', '_COM¹.jpg'],
+    'console input' => ['CONIN$.txt', '_CONIN$.txt'],
+    'console output' => ['conout$', '_conout$'],
+    'clock' => ['CLOCK$.jpg', '_CLOCK$.jpg'],
     'only dots' => ['...', 'file'],
+    'invalid utf-8' => ["caf\xE9.jpg", 'caf-.jpg'],
 ]);
 
 it('will throw an exception if the sanitized file name is a php file name', function () {

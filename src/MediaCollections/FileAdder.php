@@ -530,7 +530,8 @@ class FileAdder
 
     public function defaultSanitizer(string $fileName): string
     {
-        $sanitizedFileName = preg_replace('#\p{C}+#u', '', $fileName);
+        // Invalid utf-8 is replaced by `?`, and then by `-` below.
+        $sanitizedFileName = (string) preg_replace('#\p{C}+#u', '', mb_scrub($fileName, 'UTF-8'));
 
         // Windows does not allow a name to end with a dot or a space.
         $sanitizedFileName = rtrim($sanitizedFileName, '. ');
@@ -539,7 +540,7 @@ class FileAdder
         $sanitizedFileName = str_replace(['#', '/', '\\', ' ', ':', '*', '?', '"', '<', '>', '|'], '-', $sanitizedFileName);
 
         // Windows reserves device names, whatever the extension (`CON.txt`, `lpt1.tar.gz`).
-        if (preg_match('/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i', $sanitizedFileName)) {
+        if (preg_match('/^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$|conout\$|clock\$)(\.|$)/iu', $sanitizedFileName)) {
             $sanitizedFileName = "_{$sanitizedFileName}";
         }
 
