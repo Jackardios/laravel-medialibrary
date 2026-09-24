@@ -102,6 +102,13 @@ class Media extends Model implements Attachable, Htmlable, Responsable
      */
     private static ?WeakMap $conversionCollections = null;
 
+    /**
+     * How many media keep their conversion collection. The urls of one media are mostly
+     * built together, so a few are enough; keeping one for every media of a long listing
+     * held about 9 KB each and slowed the cycle collector down.
+     */
+    protected const MEMOIZED_CONVERSION_COLLECTIONS = 16;
+
     /** @phpstan-ignore method.childReturnType */
     public function newCollection(array $models = []): MediaCollection
     {
@@ -362,6 +369,15 @@ class Media extends Model implements Attachable, Htmlable, Responsable
         }
 
         $memo[$this] = [$fingerprint, $conversions];
+
+        if (count($memo) > static::MEMOIZED_CONVERSION_COLLECTIONS) {
+            // Forget the media that was memoized first.
+            foreach ($memo as $media => $entry) {
+                unset($memo[$media]);
+
+                break;
+            }
+        }
 
         return $conversions;
     }

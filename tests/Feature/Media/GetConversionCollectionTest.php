@@ -108,3 +108,18 @@ it('registers the conversions once while building urls and a srcset', function (
     expect($srcset)->not->toBe('')
         ->and(TestModelWithCountedConversions::$registrations)->toBe(1);
 });
+
+it('keeps the collections of the media used last only', function (int $otherMedia, bool $kept) {
+    $media = $this->testModelWithConversion->addMedia($this->getTestJpg())->toMediaCollection();
+
+    $conversions = $media->getConversionCollection();
+
+    // Other instances of the same media are other media to the memo.
+    $others = collect(range(1, $otherMedia))->map(fn () => Media::findOrFail($media->id));
+    $others->each->getConversionCollection();
+
+    expect($media->getConversionCollection() === $conversions)->toBe($kept);
+})->with([
+    'with 15 others' => [15, true],
+    'with 16 others' => [16, false],
+]);
