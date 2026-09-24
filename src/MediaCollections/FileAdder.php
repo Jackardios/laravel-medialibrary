@@ -342,9 +342,7 @@ class FileAdder
 
         $media->name = $this->mediaName;
 
-        $sanitizedFileName = ($this->fileNameSanitizer)($this->fileName);
-        $fileName = app(config('media-library.file_namer'))->originalFileName($sanitizedFileName);
-        $this->fileName = $this->appendExtension($fileName, pathinfo($sanitizedFileName, PATHINFO_EXTENSION));
+        $this->nameFile();
 
         $media->file_name = $this->fileName;
 
@@ -386,9 +384,7 @@ class FileAdder
                 return $this->toMediaCollectionFromRemote($collectionName, $diskName);
             }
 
-            $sanitizedFileName = ($this->fileNameSanitizer)($this->fileName);
-            $fileName = app(config('media-library.file_namer'))->originalFileName($sanitizedFileName);
-            $this->fileName = $this->appendExtension($fileName, pathinfo($sanitizedFileName, PATHINFO_EXTENSION));
+            $this->nameFile();
 
             if ($this->isInstanceOfTemporaryUploadModel($this->file)) {
                 return $this->toMediaCollectionFromTemporaryUpload($collectionName, $diskName, $this->fileName);
@@ -553,9 +549,39 @@ class FileAdder
         return $sanitizedFileName;
     }
 
+    /**
+     * Sanitizes and names the file.
+     */
+    protected function nameFile(): void
+    {
+        $originalFileName = $this->fileName;
+
+        $sanitizedFileName = ($this->fileNameSanitizer)($originalFileName);
+        $fileName = app(config('media-library.file_namer'))->originalFileName($sanitizedFileName);
+        $this->fileName = $this->appendExtension($fileName, pathinfo($sanitizedFileName, PATHINFO_EXTENSION));
+
+        $this->guardAgainstUnsafeFileName($originalFileName, $this->fileName);
+    }
+
+    /**
+     * Refuses a file name that leaves its directory, or that the blocklist or allow-list does not
+     * accept, whichever sanitizer, file namer or rename made it. A name may put the file in a
+     * directory of its own (`other/file.jpg`).
+     *
+     * @internal
+     */
+    public function guardAgainstUnsafeFileName(string $originalFileName, string $fileName): void
+    {
+        if (str_contains($fileName, '\\') || array_intersect(explode('/', $fileName), ['', '.', '..']) !== []) {
+            throw FileNameNotAllowed::leavesItsDirectory($originalFileName, $fileName);
+        }
+
+        $this->guardAgainstDisallowedFileName($originalFileName, $fileName);
+    }
+
     protected function guardAgainstDisallowedFileName(string $originalFileName, string $sanitizedFileName): void
     {
-        if (in_array(strtolower($sanitizedFileName), static::$disallowedFileNames, true)) {
+        if (in_array(strtolower(basename($sanitizedFileName)), static::$disallowedFileNames, true)) {
             throw FileNameNotAllowed::configuresTheServer($originalFileName, $sanitizedFileName);
         }
 

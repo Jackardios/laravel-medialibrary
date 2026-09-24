@@ -10,6 +10,7 @@ use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskCannotBeAccessed;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileIsTooBig;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileNameNotAllowed;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidBase64Data;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidUrl;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\MimeTypeNotAllowed;
@@ -17,6 +18,7 @@ use Spatie\MediaLibrary\MediaCollections\Exceptions\RequestDoesNotHaveFile;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\UnknownType;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\UnreachableUrl;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Spatie\MediaLibrary\Support\FileNamer\DefaultFileNamer;
 use Spatie\MediaLibrary\Tests\TestSupport\LocalHttpServer;
 use Spatie\MediaLibrary\Tests\TestSupport\RenameOriginalFileNamer;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
@@ -454,6 +456,31 @@ it('will sanitize the file name using callable', function () {
     $this->assertFileExists($this->getMediaDirectory($media->id.'/new_file_name.jpg'));
 });
 
+it('refuses a name made by a custom sanitizer that the blocklist does not accept or that leaves its directory', function (string $fileName, array $allowedExtensions) {
+    config()->set('media-library.allowed_extensions', $allowedExtensions);
+
+    expect(fn () => $this->testModel
+        ->addMedia($this->getTestJpg())
+        ->sanitizingFileName(fn () => $fileName)
+        ->toMediaCollection())->toThrow(FileNameNotAllowed::class);
+
+    expect(Media::count())->toBe(0);
+})->with([
+    'php' => ['shell.php', []],
+    'server config in a directory' => ['other/.user.ini', []],
+    'not allowed' => ['image.png', ['jpg']],
+    'parent directory' => ['../1/test.jpg', []],
+    'absolute' => ['/test.jpg', []],
+    'backslash' => ['..\\test.jpg', []],
+]);
+
+it('refuses a name made by a file namer that the blocklist does not accept', function () {
+    config()->set('media-library.file_namer', PhpFileNamer::class);
+
+    expect(fn () => $this->testModel->addMedia($this->getTestJpg())->toMediaCollection())
+        ->toThrow(FileNameNotAllowed::class);
+});
+
 test('the file name can be modified using a file namer', function () {
     config()->set('media-library.file_namer', RenameOriginalFileNamer::class);
 
@@ -767,3 +794,11 @@ it('will return null instead of an ImageGeneratorFactory when mimetype is null',
 it('will return null instead of an ImageGeneratorFactory when extension is null', function () {
     expect(ImageGeneratorFactory::forExtension(null))->toBeNull();
 });
+
+class PhpFileNamer extends DefaultFileNamer
+{
+    public function originalFileName(string $fileName): string
+    {
+        return 'shell.php';
+    }
+}

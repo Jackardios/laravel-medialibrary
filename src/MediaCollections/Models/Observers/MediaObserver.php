@@ -3,6 +3,7 @@
 namespace Spatie\MediaLibrary\MediaCollections\Models\Observers;
 
 use Spatie\MediaLibrary\Conversions\FileManipulator;
+use Spatie\MediaLibrary\MediaCollections\FileAdder;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
@@ -19,6 +20,10 @@ class MediaObserver
 
     public function updating(Media $media): void
     {
+        if ($media->file_name !== $media->getOriginal('file_name')) {
+            app(FileAdder::class)->guardAgainstUnsafeFileName($media->file_name, $media->file_name);
+        }
+
         /** @var Filesystem $filesystem */
         $filesystem = app(Filesystem::class);
 

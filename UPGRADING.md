@@ -9,7 +9,7 @@ Because there are many breaking changes an upgrade is not that easy. There are m
 ### Requirements
 
 - PHP 8.3 or higher and Laravel 12 or 13. Stay on 1.x for Laravel 10/11 or PHP 8.2.
-- Update the constraint: `composer require jackardios/laravel-medialibrary:^2.0`. The package conflicts with `spatie/laravel-medialibrary`; remove that one if it is still installed.
+- Update the constraint: `composer require jackardios/laravel-medialibrary:^2.0`. The package conflicts with `spatie/laravel-medialibrary`; remove that one if it is still installed. Packages that require `spatie/laravel-medialibrary` (Media Library Pro, the Filament plugin) cannot be installed with the fork.
 
 ### Database and config
 
@@ -19,8 +19,8 @@ Because there are many breaking changes an upgrade is not that easy. There are m
 ### Adding media
 
 - **Urls on private networks.** `addMediaFromUrl` throws `InvalidUrl` for a url whose host, or a host it redirects to, resolves to a private or reserved address, and for a host written with non-ascii characters (write it in punycode, `xn--...`). If you download from internal hosts, list them in `media_downloader_trusted_hosts` (wildcards allowed), or set `MEDIA_DOWNLOADER_BLOCKS_PRIVATE_NETWORKS=false` when every url is trusted. A download bigger than `max_file_size` now stops with `FileIsTooBig` while downloading. The `HttpFacadeDownloader` downloads a checked url without a proxy (it ignores `HTTP_PROXY` and the like); list a host in `media_downloader_trusted_hosts` if it can only be reached through your proxy. Tests using `Http::fake()` with the `HttpFacadeDownloader` are not affected. A custom downloader has to protect itself; it can use `Spatie\MediaLibrary\Downloaders\UrlGuard`.
-- **Refused file names.** File names with a dangerous segment (`.php`, `.phtml`, `.phar`, `.htaccess`, `.cgi`, `.asp`, `.jsp`, ... anywhere in the name), `.user.ini` and `web.config` throw `FileNameNotAllowed`. Validate uploads in your application to answer with a validation error instead of a server error. `allowed_extensions` / `disallowed_extensions` in the config adjust the list.
-- **Sanitized file names.** The default sanitizer also replaces `: * ? " < > |` with `-`, strips trailing dots and spaces and prefixes reserved Windows names (`CON`, `NUL`, `COM1`, ...) with `_`. New media may therefore get different file names than before; existing media keep theirs. Use `sanitizingFileName()` to keep your own rules.
+- **Refused file names.** File names with a dangerous segment (`.php`, `.phtml`, `.phar`, `.htaccess`, `.cgi`, `.asp`, `.jsp`, ... anywhere in the name), `.user.ini` and `web.config` throw `FileNameNotAllowed`, also when your own sanitizer (`sanitizingFileName()`) or file namer made the name, and when a media is renamed (`$media->file_name = ...`). A name that leaves its directory (`..`, a leading `/`, a backslash) is refused the same way; `other/file.jpg` is still allowed. Validate uploads in your application to answer with a validation error instead of a server error. `allowed_extensions` / `disallowed_extensions` in the config adjust the list.
+- **Sanitized file names.** The default sanitizer also replaces `: * ? " < > |` with `-`, strips trailing dots and spaces and prefixes reserved Windows names (`CON`, `NUL`, `COM1`, ...) with `_`. New media may therefore get different file names than before; existing media keep theirs. Use `sanitizingFileName()` to keep your own rules; the blocklist still applies to its result.
 - Files from urls without an extension get the usual extension of their type (`jpg`, not `jpeg`).
 - `updateMedia()` throws `MediaCannotBeUpdated` when an item belongs to another model.
 

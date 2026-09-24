@@ -3,6 +3,7 @@
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileNameNotAllowed;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\MediaCannotBeUpdated;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\MediaLibraryServiceProvider;
@@ -228,6 +229,34 @@ it('records a conversion that cannot be renamed as not generated', function () {
     expect($media->fresh()->file_name)->toBe('renamed.jpg')
         ->and($media->fresh()->hasGeneratedConversion('thumb'))->toBeFalse()
         ->and($media->fresh()->hasGeneratedConversion('keep_original_format'))->toBeTrue();
+});
+
+it('refuses a name that the blocklist does not accept or that leaves its directory', function (string $fileName, array $allowedExtensions) {
+    config()->set('media-library.allowed_extensions', $allowedExtensions);
+
+    $media = $this->testModel->addMedia($this->getTestJpg())->toMediaCollection();
+
+    $media->file_name = $fileName;
+
+    expect(fn () => $media->save())->toThrow(FileNameNotAllowed::class);
+
+    expect($media->fresh()->file_name)->toBe('test.jpg')
+        ->and($media->fresh()->getPath())->toBeFile();
+})->with([
+    'php' => ['shell.php', []],
+    'server config' => ['.htaccess', []],
+    'not allowed' => ['test.png', ['jpg']],
+    'another media' => ['../2/test.jpg', []],
+    'backslash' => ['..\\2\\test.jpg', []],
+]);
+
+it('renames the file into a directory of its own', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->toMediaCollection();
+
+    $media->file_name = 'other/renamed.jpg';
+    $media->save();
+
+    expect($this->getMediaDirectory("{$media->id}/other/renamed.jpg"))->toBeFile();
 });
 
 class TestModelWithConversionsOfTwoCollections extends TestModel
