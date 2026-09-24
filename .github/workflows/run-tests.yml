@@ -1,76 +1,234 @@
 name: run-tests
 
 on:
-  - push
-  - pull_request
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXTENSIONS: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, intl, gd, exif, iconv, fileinfo, imagick
 
 jobs:
-  run-tests:
+  tests:
     runs-on: ubuntu-latest
-
-    timeout-minutes: 5
+    timeout-minutes: 15
 
     strategy:
       fail-fast: false
       matrix:
-        php: [8.5, 8.4, 8.3, 8.2]
-        laravel: ['10.*', '11.*', '12.*', '13.*']
-        dependency-version: [prefer-lowest, prefer-stable]
+        php: ['8.3', '8.4', '8.5']
+        laravel: ['12.*', '13.*']
+        stability: [prefer-lowest, prefer-stable]
         include:
-          - laravel: 10.*
-            testbench: ^8.36
-          - laravel: 11.*
-            testbench: ^9.15
-          - laravel: 12.*
-            testbench: ^10.8
-          - laravel: 13.*
-            testbench: ^11.0
-        exclude:
-          - laravel: 10.*
-            php: 8.5
-          - laravel: 13.*
-            php: 8.2
+          - laravel: '12.*'
+            testbench: '^10.0'
+          - laravel: '13.*'
+            testbench: '^11.0'
 
-    name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.dependency-version }}
+    name: PHP ${{ matrix.php }} - Laravel ${{ matrix.laravel }} - ${{ matrix.stability }}
 
     steps:
-      - name: Update apt
-        run: sudo apt-get update --fix-missing
+      - uses: actions/checkout@v7
 
-      - name: Install ffmpeg
-        run: sudo apt-get -y install ffmpeg
-
-      - name: Install ghostscript
-        run: sudo apt-get -y install ghostscript
-
-      - name: Checkout code
-        uses: actions/checkout@v7
+      - name: Install ffmpeg, ghostscript and the image optimizers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg ghostscript jpegoptim optipng pngquant gifsicle webp
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, soap, intl, gd, exif, iconv, imagick
+          extensions: ${{ env.EXTENSIONS }}
           coverage: none
 
-      - name: Setup Problem Matches
-        run: |
-          echo "::add-matcher::${{ runner.tool_cache }}/php.json"
-          echo "::add-matcher::${{ runner.tool_cache }}/phpunit.json"
-
-      - name: Fix Imagick Policy
-        run: sudo sed -i 's/none/read|write/g' /etc/ImageMagick-6/policy.xml
+      - name: Allow ImageMagick to read PDFs
+        run: sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-*/policy.xml
 
       - name: Install dependencies
+        # Composer skips versions with security advisories, which would silently raise the lowest
+        # versions tested; --no-blocking keeps prefer-lowest at the real minimum.
         run: |
-          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
-          composer remove "larastan/larastan" --dev --no-interaction --no-update
-          composer update --${{ matrix.dependency-version }} --prefer-dist --no-interaction
+          composer require "laravel/framework:${{ matrix.laravel }}" --no-interaction --no-update
+          composer require --dev "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
+          composer update --${{ matrix.stability }} ${{ matrix.stability == 'prefer-lowest' && '--no-blocking' || '' }} --prefer-dist --no-interaction
+
+      - name: Show the installed versions
+        run: composer show | grep -E '^(laravel/framework|orchestra/testbench|pestphp/pest|phpunit/phpunit|spatie/image|spatie/image-optimizer|guzzlehttp/psr7|symfony/console) '
+
+      - name: Execute tests
+        run: vendor/bin/pest --parallel --order-by=random
+
+  s3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    name: S3 (MinIO)
+
+    env:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_BUCKET: mlib-tests
+      AWS_ENDPOINT: http://127.0.0.1:9000
+      AWS_URL: http://127.0.0.1:9000/mlib-tests
+      AWS_USE_PATH_STYLE_ENDPOINT: 1
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin minio/minio server /data
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9000/minio/health/live && break; sleep 1; done
+          docker run --rm --network host --entrypoint sh minio/mc -c \
+            "mc alias set local http://127.0.0.1:9000 minioadmin minioadmin && mc mb local/mlib-tests && mc anonymous set download local/mlib-tests"
+
+      - name: Install ghostscript
+        run: sudo apt-get update && sudo apt-get install -y ghostscript
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: ${{ env.EXTENSIONS }}
+          coverage: none
+
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-interaction
+
+      - name: Execute the S3 tests
+        run: vendor/bin/pest tests/Feature/S3Integration
+
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    name: Coverage and mutation testing
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install ffmpeg, ghostscript and the image optimizers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg ghostscript jpegoptim optipng pngquant gifsicle webp
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: ${{ env.EXTENSIONS }}
+          coverage: pcov
+
+      - name: Allow ImageMagick to read PDFs
+        run: sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-*/policy.xml
+
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-interaction
+
+      - name: Coverage
+        run: vendor/bin/pest --parallel --coverage --min=88
+
+      # The mutation plugin counts a mutation as caught when its test run fails for any reason:
+      # when the --filter of a line covered by some 400 tests is too large for PCRE ("No tests
+      # found"), or when a run times out. Its score can only come out higher than the real one
+      # (76.99 % measured on 2.0 with those runs fixed), so the minimum guards against drops.
+      # Don't pass --processes: it is forwarded to every mutation run, which then fails.
+      - name: Mutation testing
+        run: vendor/bin/pest --mutate --everything --covered-only --parallel --min=75
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    # Experimental: the package is not verified on Windows yet.
+    continue-on-error: true
+
+    name: Windows (experimental)
+
+    steps:
+      - name: Keep line endings as they are
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: dom, curl, mbstring, zip, pdo, sqlite, pdo_sqlite, bcmath, intl, gd, exif, fileinfo
+          coverage: none
+
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-interaction --ignore-platform-req=ext-imagick
 
       - name: Execute tests
         run: vendor/bin/pest
+
+  php-next:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Experimental: the next PHP version is not released yet.
+    continue-on-error: true
+
+    name: PHP 8.6 (experimental)
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.6'
+          extensions: dom, curl, libxml, mbstring, zip, pdo, sqlite, pdo_sqlite, bcmath, intl, gd, exif, iconv, fileinfo
+          coverage: none
+
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-interaction --ignore-platform-req=php+ --ignore-platform-req=ext-imagick
+
+      - name: Execute tests, logging deprecations
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-          AWS_BUCKET: ${{ secrets.AWS_BUCKET }}
+          LOG_DEPRECATIONS_WHILE_TESTING: true
+          MEDIA_LIBRARY_DEPRECATIONS_LOG: ${{ runner.temp }}/deprecations.log
+        run: vendor/bin/pest
+
+      # Deprecations of the dependencies are shown; only the package's own fail the job.
+      - name: Fail on deprecations
+        run: |
+          LOG="${{ runner.temp }}/deprecations.log"
+          [ -s "$LOG" ] || exit 0
+          sed 's/^\[[^]]*\] //' "$LOG" | sort | uniq -c | sort -rn | head -100
+          if grep -qE " in ${GITHUB_WORKSPACE}/(src|tests)/" "$LOG"; then exit 1; fi
+
+  laravel-next:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Experimental: tracks the next Laravel version.
+    continue-on-error: true
+
+    name: Laravel dev-master (experimental)
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: ${{ env.EXTENSIONS }}
+          coverage: none
+
+      # orchestra/testbench has no branch for the next Laravel version, testbench-core has.
+      - name: Install dependencies
+        run: |
+          composer config minimum-stability dev
+          composer config prefer-stable true
+          composer remove --dev orchestra/testbench --no-interaction --no-update
+          composer require --dev "laravel/framework:dev-master" "orchestra/testbench-core:12.x-dev" --no-interaction --no-update
+          composer update --prefer-dist --no-interaction -W
+
+      - name: Execute tests
+        run: vendor/bin/pest

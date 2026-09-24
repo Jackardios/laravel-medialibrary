@@ -97,6 +97,11 @@ abstract class TestCase extends Orchestra
     {
         $this->initializeDirectory($this->getTempDirectory());
 
+        // Laravel only reports deprecations in tests when LOG_DEPRECATIONS_WHILE_TESTING is set as well.
+        if ($deprecationsLog = getenv('MEDIA_LIBRARY_DEPRECATIONS_LOG')) {
+            config()->set('logging.channels.deprecations', ['driver' => 'single', 'path' => $deprecationsLog]);
+        }
+
         config()->set('database.default', 'sqlite');
         config()->set('database.connections.sqlite', [
             'driver' => 'sqlite',
