@@ -15,6 +15,7 @@ class Conversion
 {
     use Conditionable;
 
+    /** Resolved when first needed, as most conversions only ever build a url. */
     protected FileNamer $fileNamer;
 
     protected float $extractVideoFrameAtSecond = 0;
@@ -35,17 +36,19 @@ class Conversion
 
     protected ?string $loadingAttributeValue;
 
+    /**
+     * Whether the optimizer chain from the config still has to replace the `optimize`
+     * manipulation's missing argument. Building it takes a chain and an object per
+     * optimizer, which a conversion that only builds a url never needs.
+     */
+    private bool $optimizerChainPending = true;
+
     protected int $pdfPageNumber = 1;
 
     public function __construct(
         protected string $name,
     ) {
-        $optimizerChain = OptimizerChainFactory::create(config('media-library.image_optimizers'));
-
-        $this->manipulations = new Manipulations;
-        $this->manipulations->optimize($optimizerChain)->format('jpg');
-
-        $this->fileNamer = app(config('media-library.file_namer'));
+        $this->manipulations = new Manipulations(['optimize' => [], 'format' => ['jpg']]);
 
         $this->loadingAttributeValue = config('media-library.default_loading_attribute_value');
 
@@ -97,6 +100,16 @@ class Conversion
 
     public function getManipulations(): Manipulations
     {
+        if ($this->optimizerChainPending) {
+            $this->optimizerChainPending = false;
+
+            if ($this->manipulations->getManipulationArgument('optimize') === []) {
+                $this->manipulations->addManipulation('optimize', [
+                    OptimizerChainFactory::create(config('media-library.image_optimizers')),
+                ]);
+            }
+        }
+
         return $this->manipulations;
     }
 
@@ -116,6 +129,11 @@ class Conversion
 
     public function __call($name, $arguments): self
     {
+        if ($name === 'optimize') {
+            // An explicit `optimize()` keeps its own chain, or the image package's default one.
+            $this->optimizerChainPending = false;
+        }
+
         $this->manipulations->$name(...$arguments);
 
         return $this;
@@ -250,6 +268,8 @@ class Conversion
 
     public function getConversionFile(Media $media): string
     {
+        $this->fileNamer ??= app(config('media-library.file_namer'));
+
         $fileName = $this->fileNamer->conversionFileName($media->file_name, $this);
 
         $fileExtension = $this->fileNamer->extensionFromBaseImage($media->file_name);
