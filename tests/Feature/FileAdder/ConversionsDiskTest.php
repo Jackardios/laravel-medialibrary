@@ -217,6 +217,33 @@ it('moves conversions stored on a separate disk when moving media on update', fu
         ->and($oldConversionPath)->not->toBeFile();
 });
 
+it('moves responsive images stored on a separate disk when moving media on update', function () {
+    config()->set('media-library.moves_media_on_update', true);
+    config()->set('media-library.path_generator', TestUuidPathGenerator::class);
+
+    $media = $this->testModel
+        ->addMedia($this->getTestJpg())
+        ->withResponsiveImages()
+        ->storingConversionsOnDisk('secondMediaDisk')
+        ->toMediaCollection();
+
+    $responsiveImagesIn = fn (string $uuid) => array_map(
+        'basename',
+        glob($this->getTempDirectory("media2/{$uuid}/custom_responsive_images/*")),
+    );
+
+    $oldUuid = $media->uuid;
+    $fileNames = $responsiveImagesIn($oldUuid);
+
+    expect($fileNames)->not->toBeEmpty()
+        ->toEqualCanonicalizing($media->fresh()->responsiveImages()->getFilenames());
+
+    $media->update(['uuid' => (string) Str::uuid()]);
+
+    expect($responsiveImagesIn($media->uuid))->toBe($fileNames)
+        ->and($responsiveImagesIn($oldUuid))->toBe([]);
+});
+
 it('attaches a conversion under its own name and mime type', function () {
     $media = $this->testModelWithConversion
         ->addMedia($this->getTestPng())
