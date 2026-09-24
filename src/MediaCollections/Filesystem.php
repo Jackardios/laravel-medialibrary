@@ -12,7 +12,6 @@ use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskCannotBeAccessed;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Support\File;
-use Spatie\MediaLibrary\Support\FileNamer\FileNamer;
 use Spatie\MediaLibrary\Support\FileRemover\FileRemoverFactory;
 use Spatie\MediaLibrary\Support\PathGenerator\PathGeneratorFactory;
 use Spatie\MediaLibrary\Support\RemoteFile;
@@ -268,21 +267,22 @@ class Filesystem
 
     public function removeResponsiveImages(Media $media, string $conversionName = 'media_library_original'): void
     {
-        /** @var FileNamer $fileNamer */
-        $fileNamer = app(config('media-library.file_namer'));
-        $mediaFilename = $fileNamer->responsiveFileName($media->name);
-
         $responsiveImagesDirectory = $this->getResponsiveImagesDirectory($media);
 
-        // Responsive images are stored on the `conversions_disk` (see copyToMediaLibrary),
-        // which may differ from the original's `disk` — list and delete from the same disk.
-        $allFilePaths = $this->filesystem->disk($media->conversions_disk)->allFiles($responsiveImagesDirectory);
-
-        $responsiveImagePaths = array_filter(
-            $allFilePaths,
-            static fn (string $path) => Str::contains($path, $mediaFilename.'___'.$conversionName)
+        // Remove exactly the files registered for this conversion. Matching file names instead
+        // also hits conversions sharing a prefix (`thumb` and `thumb-large`) and misses the files
+        // of a media that was renamed or given a custom name.
+        $responsiveImagePaths = array_map(
+            static fn (string $fileName) => $responsiveImagesDirectory.$fileName,
+            $media->responsive_images[$conversionName]['urls'] ?? []
         );
 
+        if ($responsiveImagePaths === []) {
+            return;
+        }
+
+        // Responsive images are stored on the `conversions_disk` (see copyToMediaLibrary),
+        // which may differ from the original's `disk`.
         $this->filesystem->disk($media->conversions_disk)->delete($responsiveImagePaths);
     }
 

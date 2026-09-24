@@ -174,11 +174,11 @@ class ResponsiveImageGenerator
 
     protected function cleanResponsiveImages(Media $media, string $conversionName = 'media_library_original'): Media
     {
+        $this->filesystem->removeResponsiveImages($media, $conversionName);
+
         $responsiveImages = $media->responsive_images;
         $responsiveImages[$conversionName]['urls'] = [];
         $media->responsive_images = $responsiveImages;
-
-        $this->filesystem->removeResponsiveImages($media, $conversionName);
 
         return $media;
     }
