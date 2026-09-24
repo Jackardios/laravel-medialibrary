@@ -17,7 +17,7 @@ class UrlGuard
      * The address to connect to for the url, or null when its host is not checked (a trusted
      * host, or the protection is disabled) and may be resolved as usual.
      *
-     * @throws InvalidUrl when the url is not an http(s) url or its host resolves to a private or reserved address
+     * @throws InvalidUrl when the url is not an http(s) url, or its host is not ascii or resolves to a private or reserved address
      * @throws UnreachableUrl when its host does not resolve
      */
     public function addressFor(string $url): ?string
@@ -31,6 +31,12 @@ class UrlGuard
 
         if (! config('media-library.media_downloader_blocks_private_networks', true) || $this->isTrusted($host)) {
             return null;
+        }
+
+        // Clients look up the ascii (punycode) form of an international domain name, which may
+        // resolve elsewhere than the name checked here.
+        if (preg_match('/[^\x21-\x7e]/', $host)) {
+            throw InvalidUrl::hostIsNotAscii($url);
         }
 
         $addresses = $this->resolve($host);
@@ -93,7 +99,7 @@ class UrlGuard
         }
 
         // Also resolves numeric forms such as `2130706433` (127.0.0.1) and uses the hosts file.
-        $addresses = gethostbynamel($host) ?: [];
+        $addresses = @gethostbynamel($host) ?: [];
 
         if ($addresses === []) {
             foreach (@dns_get_record($host, DNS_AAAA) ?: [] as $record) {

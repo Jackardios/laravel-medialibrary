@@ -15,4 +15,9 @@ class InvalidUrl extends Exception
     {
         return new static("Could not add `{$url}` because its host resolves to `{$address}`, a private or reserved address. Add the host to `media_downloader_trusted_hosts` in the media-library config to allow it.");
     }
+
+    public static function hostIsNotAscii(string $url): self
+    {
+        return new static("Could not add `{$url}` because its host is not written in ascii. Write an international domain name in its punycode form (`xn--...`).");
+    }
 }

@@ -63,3 +63,13 @@ it('throws when the host does not resolve', function () {
     expect(fn () => (new UrlGuard)->addressFor('http://does-not-exist.invalid/image.jpg'))
         ->toThrow(UnreachableUrl::class);
 });
+
+it('refuses a host that is not written in ascii', function (string $url) {
+    // Clients look up the ascii (punycode) form of such a host, not the checked one.
+    expect(fn () => (new UrlGuard)->addressFor($url))->toThrow(InvalidUrl::class, 'ascii');
+})->with(['http://bücher.example/image.jpg', 'https://EXÄMPLE.com:8080/image.jpg']);
+
+it('throws when the host is too long to resolve', function () {
+    expect(fn () => (new UrlGuard)->addressFor('http://'.str_repeat('a', 250).'.example/image.jpg'))
+        ->toThrow(UnreachableUrl::class);
+});
