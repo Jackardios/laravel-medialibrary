@@ -20,7 +20,7 @@ it('will create derived files when manipulations have changed', function () {
     /** @var Media $media */
     $media = $testModel->addMedia($this->getTestJpg())->toMediaCollection('images');
 
-    touch($media->getPath('update_test'), time() - 1);
+    touch($media->getPath('update_test'), time() - 60);
 
     $conversionModificationTime = filemtime($media->getPath('update_test'));
 
@@ -61,7 +61,7 @@ it('will not create derived files when manipulations have not changed', function
 
     $media->save();
 
-    touch($media->getPath('update_test'), time() - 1);
+    touch($media->getPath('update_test'), time() - 60);
 
     $conversionModificationTime = filemtime($media->getPath('update_test'));
 
