@@ -1,6 +1,8 @@
 <?php
 
 use Spatie\MediaLibrary\Conversions\ConversionCollection;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
 
 beforeEach(function () {
     $media = $this->testModelWithConversion
@@ -140,4 +142,26 @@ it('will apply the manipulation on the equally named conversion of every model',
     }
 
     expect($manipulations[1])->toEqual($manipulations[0]);
+});
+
+class TestModelWithSameConversionNamePerCollection extends TestModel
+{
+    public function registerMediaConversions(?Media $media = null): void
+    {
+        $this->addMediaConversion('preview')->width(50)->format('png')->performOnCollections('avatar')->nonQueued();
+        $this->addMediaConversion('preview')->width(80)->format('jpg')->performOnCollections('signature')->nonQueued();
+    }
+}
+
+it('resolves a conversion name to the conversion of the collection of the media', function () {
+    $media = TestModelWithSameConversionNamePerCollection::first()->addMedia($this->getTestPng())->toMediaCollection('signature');
+
+    expect($media->getPath('preview'))->toEndWith('/test-preview.jpg')->toBeFile()
+        ->and($media->getUrl('preview'))->toEndWith('/test-preview.jpg');
+});
+
+it('still resolves a conversion name that is not performed on the collection of the media', function () {
+    $media = TestModelWithSameConversionNamePerCollection::first()->addMedia($this->getTestPng())->toMediaCollection('other');
+
+    expect($media->getUrl('preview'))->toEndWith('/test-preview.png');
 });
