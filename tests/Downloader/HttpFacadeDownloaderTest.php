@@ -5,31 +5,12 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Spatie\MediaLibrary\Downloaders\HttpFacadeDownloader;
 
-it('can save a url to a temp location', function () {
-    $url = 'https://example.com';
+it('sends the request with its user agent', function () {
+    Http::fake(['https://example.com/image.jpg' => Http::response('::file::')]);
 
-    Http::shouldReceive('withUserAgent')
-        ->with('Spatie MediaLibrary')
-        ->once()
-        ->andReturnSelf()
-        ->getMock()
-        ->shouldReceive('throw')
-        ->once()
-        ->andReturnSelf()
-        ->getMock()
-        ->shouldReceive('sink')
-        ->once()
-        ->andReturnSelf()
-        ->getMock()
-        ->shouldReceive('get')
-        ->with($url)
-        ->once();
+    (new HttpFacadeDownloader)->getTempFile('https://example.com/image.jpg');
 
-    $downloader = new HttpFacadeDownloader;
-
-    $result = $downloader->getTempFile($url);
-
-    expect($result)->toBeString();
+    Http::assertSent(fn (Request $request) => $request->hasHeader('User-Agent', 'Spatie MediaLibrary'));
 });
 
 it('can be mocked easily for tests', function () {
@@ -54,4 +35,10 @@ it('can be mocked easily for tests', function () {
     Http::assertSent(function (Request $request) {
         return $request->url() == 'https://example.com';
     });
+});
+
+it('does not check a faked url', function () {
+    Http::fake(['http://127.0.0.1/image.jpg' => Http::response('::file::')]);
+
+    expect(File::get((new HttpFacadeDownloader)->getTempFile('http://127.0.0.1/image.jpg')))->toBe('::file::');
 });

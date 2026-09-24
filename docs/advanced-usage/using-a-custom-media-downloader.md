@@ -5,17 +5,40 @@ weight: 6
 
 By default, when using the `addMediaFromUrl` method, the package internally uses `fopen` to download the media. In some cases though, the media can be behind a firewall or you need to attach specific headers to get access.
 
+## Protection against private networks
+
+To protect against server side request forgery (SSRF), both built-in downloaders refuse a URL whose host resolves to a private or reserved address: loopback (`localhost`, `127.0.0.1`, `::1`), private networks (`10.0.0.0/8`, `192.168.0.0/16`, ...), link-local addresses such as the cloud metadata endpoint `169.254.169.254`, and other reserved ranges. They check every redirect the same way, connect to the address they checked so a second DNS lookup cannot point elsewhere, and stop the download as soon as it exceeds `max_file_size`. A refused URL throws `Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidUrl`.
+
+To download from an internal host, list it in the config. Wildcards are allowed:
+
+```php
+// config/media-library.php
+
+'media_downloader_trusted_hosts' => ['files.internal.example', '*.cdn.internal.example'],
+```
+
+Setting `media_downloader_blocks_private_networks` to `false` (or `MEDIA_DOWNLOADER_BLOCKS_PRIVATE_NETWORKS=false`) disables the check. Only do that when every URL comes from a trusted source.
+
+Without the curl extension the `HttpFacadeDownloader` still checks every URL, but it cannot make the connection to the checked address.
+
+## Writing your own downloader
+
 To do that, you can specify your own Media Downloader by creating a class that implements the `Downloader` interface. This method must fetch the resource and return the location of the temporary file.
+
+A custom downloader is responsible for its own protection. `Spatie\MediaLibrary\Downloaders\UrlGuard` does the check: `addressFor($url)` throws for a URL that must not be downloaded, and returns the address to connect to (or `null` when the host is trusted and may be resolved as usual). Check every redirect too, or do not follow them.
 
 For example, consider the following example which uses curl with custom headers to fetch the media.
 
 ```php
 use Spatie\MediaLibrary\Downloaders\Downloader;
+use Spatie\MediaLibrary\Downloaders\UrlGuard;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\UnreachableUrl;
 
 class CustomDownloader implements Downloader {
 
     public function getTempFile($url){
+        $address = app(UrlGuard::class)->addressFor($url);
+
         $temporaryFile = tempnam(sys_get_temp_dir(), 'media-library');
         $fh = fopen($temporaryFile, 'w');
 
@@ -25,7 +48,16 @@ class CustomDownloader implements Downloader {
             CURLOPT_FAILONERROR     => true,
             CURLOPT_FILE            => $fh,
             CURLOPT_TIMEOUT         => 35,
+            CURLOPT_FOLLOWLOCATION  => false,
         ];
+
+        if ($address !== null) {
+            $host = parse_url($url, PHP_URL_HOST);
+            $port = parse_url($url, PHP_URL_PORT) ?? (parse_url($url, PHP_URL_SCHEME) === 'https' ? 443 : 80);
+            $pinned = str_contains($address, ':') ? "[{$address}]" : $address; // IPv6
+            $options[CURLOPT_RESOLVE] = ["{$host}:{$port}:{$pinned}"];
+        }
+
         $headers = [
             'Content-Type: image/*',
             'User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:28.0) Gecko/20100101 Firefox/28.0',
@@ -64,7 +96,7 @@ to mock any requests made to external URLs.
     'media_downloader' => Spatie\MediaLibrary\Downloaders\HttpFacadeDownloader::class,
 ```
 
-This then makes it easier in tests to mock the download of files.
+This then makes it easier in tests to mock the download of files. Requests faked with `Http::fake()` are not checked against private networks.
 
 ```php
 $url = 'http://medialibrary.spatie.be/assets/images/mountain.jpg';

@@ -49,7 +49,7 @@ This method only accepts URLs that start with `http://` or `https://`
 public function addMediaFromUrl(string $url)
 ```
 
-**Security note.** `addMediaFromUrl` fetches whatever URL you pass to it from your server. It validates only that the URL starts with `http://` or `https://`, not that the destination is safe to reach. Passing user supplied URLs directly therefore exposes your application to server side request forgery (SSRF), letting an attacker make requests to internal hosts, RFC 1918 ranges, loopback, or cloud metadata endpoints (such as `http://169.254.169.254/`). Only call `addMediaFromUrl` with URLs you control, or that you have validated against an allowlist of hosts.
+**Security note.** `addMediaFromUrl` fetches the URL from your server. To protect against server side request forgery (SSRF), the built-in downloaders refuse URLs whose host resolves to a private or reserved address (loopback, RFC 1918 ranges, link-local addresses such as the cloud metadata endpoint `http://169.254.169.254/`, and so on). Every redirect is checked the same way, the connection is made to the address that was checked, and the download stops as soon as it exceeds `max_file_size`. A refused URL throws `InvalidUrl`. See [using a custom media downloader](/docs/laravel-medialibrary/v11/advanced-usage/using-a-custom-media-downloader) for trusting internal hosts. A custom downloader has to protect itself.
 
 ### addMediaFromDisk
 

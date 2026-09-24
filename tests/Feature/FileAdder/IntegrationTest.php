@@ -284,6 +284,14 @@ it('can add a remote file to the media library', function () {
     expect($this->getMediaDirectory("{$media->id}/test.jpg"))->toBeFile();
 });
 
+it('will not add a remote file from a private network', function () {
+    $this->expectException(InvalidUrl::class);
+
+    $this->testModel
+        ->addMediaFromUrl(LocalHttpServer::url('/files/test.jpg'))
+        ->toMediaCollection();
+});
+
 it('will not add local files when an url is expected', function () {
     $this->expectException(InvalidUrl::class);
 

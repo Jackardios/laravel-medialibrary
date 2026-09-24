@@ -206,6 +206,27 @@ return [
      * need to add additional flags, possibly using curl.
      */
     'media_downloader' => Spatie\MediaLibrary\Downloaders\DefaultDownloader::class,
+
+    /*
+     * When using the addMediaFromUrl method the SSL is verified by default.
+     * This is option disables SSL verification when downloading remote media.
+     * Please note that this is a security risk and should only be false in a local environment.
+     */
+    'media_downloader_ssl' => env('MEDIA_DOWNLOADER_SSL', true),
+
+    /*
+     * When using the addMediaFromUrl method, urls whose host resolves to a private or
+     * reserved address (localhost, the local network, cloud metadata services) are
+     * refused, redirects included. The downloader connects to the address it checked.
+     * Only disable this when every url comes from a trusted source.
+     */
+    'media_downloader_blocks_private_networks' => env('MEDIA_DOWNLOADER_BLOCKS_PRIVATE_NETWORKS', true),
+
+    /*
+     * Hosts that may be downloaded from even when they resolve to a private address,
+     * for example an internal file server. Wildcards are allowed: '*.internal.example'.
+     */
+    'media_downloader_trusted_hosts' => [],
     
     /*
      * The default lifetime in minutes for temporary urls.
