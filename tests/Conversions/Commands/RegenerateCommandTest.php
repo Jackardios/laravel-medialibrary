@@ -249,6 +249,21 @@ it('can regenerate responsive images', function () {
     }
 });
 
+it('does not generate responsive images of the original for media that never had them', function (array $options) {
+    // Only the `thumb` conversion has responsive images.
+    $media = $this->testModelWithResponsiveImages->addMedia($this->getTestJpg())->toMediaCollection();
+
+    expect($media->fresh()->responsive_images)->toHaveKey('thumb')->not->toHaveKey('media_library_original');
+
+    $this->artisan('media-library:regenerate', ['--with-responsive-images' => true, ...$options])->assertExitCode(0);
+
+    expect($media->fresh()->responsive_images)->toHaveKey('thumb')->not->toHaveKey('media_library_original');
+})->with([
+    'inline' => [[]],
+    'queue all' => [['--queue-all' => true]],
+    'trusting the database' => [['--only-missing' => true, '--trust-database' => true]],
+]);
+
 it('can regenerate files by starting from id', function () {
     $media = $this->testModelWithConversion
         ->addMedia($this->getTestFilesDirectory('test.jpg'))

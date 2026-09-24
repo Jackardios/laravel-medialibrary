@@ -57,6 +57,8 @@ If you want to force responsive images to be regenerated, you can use the `--wit
 php artisan media-library:regenerate --with-responsive-images
 ```
 
+This regenerates the responsive images of the original for media that has them. Responsive images of a conversion are always regenerated along with the conversion.
+
 ## Queueing the regeneration
 
 By default the command regenerates the way conversions are created when media is added: non-queued conversions run in the command's own process, queued conversions are dispatched to the `media-library.queue_connection_name` connection.

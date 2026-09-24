@@ -96,7 +96,7 @@ class FileManipulator
 
         $conversions = $this->rejectAlreadyGeneratedConversions($conversions, $media, $onlyMissing, $verifyExistence);
 
-        $needsResponsiveImages = $withResponsiveImages && count($media->responsive_images) > 0;
+        $needsResponsiveImages = $withResponsiveImages && $this->hasResponsiveImagesOfOriginal($media);
 
         // Nothing to do — skip the (potentially remote) download of the original entirely.
         if ($conversions->isEmpty() && ! $needsResponsiveImages) {
@@ -359,7 +359,7 @@ class FileManipulator
             return $this;
         }
 
-        if (! count($media->responsive_images)) {
+        if (! $this->hasResponsiveImagesOfOriginal($media)) {
             return $this;
         }
 
@@ -378,6 +378,15 @@ class FileManipulator
             : dispatch($job);
 
         return $this;
+    }
+
+    /**
+     * Responsive images of the original are only regenerated for media that has them. Those of
+     * conversions are generated along with their conversion.
+     */
+    protected function hasResponsiveImagesOfOriginal(Media $media): bool
+    {
+        return array_key_exists('media_library_original', $media->responsive_images);
     }
 
     protected function canConvertMedia(Media $media): bool
