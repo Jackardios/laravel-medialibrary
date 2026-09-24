@@ -720,7 +720,9 @@ class FileAdder
                     $job->onQueue($customQueue);
                 }
 
-                dispatch($job);
+                config('media-library.queue_conversions_after_database_commit')
+                    ? dispatch($job)->afterCommit()
+                    : dispatch($job);
             }
 
             $this->keepCollectionSizeLimit($model, $media);
