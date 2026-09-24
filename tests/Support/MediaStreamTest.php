@@ -234,6 +234,19 @@ it('gives every file in the zip a unique name', function () {
     expect(zipEntryNames(MediaStream::create('my-media.zip')->addMedia($media)))->toBe(['a.jpg', 'a (1).jpg', 'a (1) (1).jpg']);
 });
 
+it('gives every file a unique name once the zip has replaced the characters it does not allow', function () {
+    $media = collect(['a:b.jpg', 'a_b.jpg', 'A*B.jpg', 'dir\\a|b.jpg'])->map(function (string $downloadName) {
+        $media = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()
+            ->withCustomProperties(['download_name' => $downloadName])
+            ->toMediaCollection();
+
+        return MediaWithDownloadName::find($media->id);
+    });
+
+    expect(zipEntryNames(MediaStream::create('my-media.zip')->addMedia($media)))
+        ->toBe(['a_b.jpg', 'a_b (1).jpg', 'A_B (2).jpg', 'dir_a_b.jpg']);
+});
+
 it('names the files the same way every time the zip is streamed', function () {
     $mediaStream = MediaStream::create('my-media.zip')->addMedia(Media::all());
 

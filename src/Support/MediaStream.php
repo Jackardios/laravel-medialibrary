@@ -12,8 +12,11 @@ class MediaStream implements Responsable
 {
     protected Collection $mediaItems;
 
-    /** @var array<string, true> The names already used in the zip being built. */
+    /** @var array<string, true> The names already used in the zip being built, in lower case. */
     private array $zipFileNames = [];
+
+    /** @var array<string, int> The number to try first for the next duplicate of a name. */
+    private array $nextDuplicateNumbers = [];
 
     protected array $zipOptions;
 
@@ -105,6 +108,7 @@ class MediaStream implements Responsable
     protected function getZipStreamContents(): Collection
     {
         $this->zipFileNames = [];
+        $this->nextDuplicateNumbers = [];
 
         return $this->mediaItems->map(fn (Media $media, $mediaItemIndex) => [
             'fileNameInZip' => $this->getZipFileNamePrefix($this->mediaItems, $mediaItemIndex).$this->getFileNameWithSuffix($this->mediaItems, $mediaItemIndex),
@@ -114,24 +118,29 @@ class MediaStream implements Responsable
 
     protected function getFileNameWithSuffix(Collection $mediaItems, int $currentIndex): string
     {
-        $fileName = $mediaItems[$currentIndex]->getDownloadFilename();
+        // The zip replaces these characters itself, which could make two names the same.
+        $fileName = str_replace(['\\', ':', '*', '?', '"', '<', '>', '|'], '_', $mediaItems[$currentIndex]->getDownloadFilename());
 
         $prefix = $this->getZipFileNamePrefix($mediaItems, $currentIndex);
 
         $extension = pathinfo($fileName, PATHINFO_EXTENSION);
         $fileNameWithoutExtension = pathinfo($fileName, PATHINFO_FILENAME);
 
-        // Number a duplicate until its name is free, which it may not be when another file
-        // is already named like a numbered duplicate.
+        // Number a duplicate until its name is free, which it may not be when another file is
+        // already named like a numbered duplicate. Names differing in case only are duplicates
+        // on Windows and macOS.
+        $key = mb_strtolower($prefix.$fileName);
         $uniqueFileName = $fileName;
 
-        for ($count = 1; isset($this->zipFileNames[$prefix.$uniqueFileName]); $count++) {
+        for ($count = $this->nextDuplicateNumbers[$key] ?? 1; isset($this->zipFileNames[mb_strtolower($prefix.$uniqueFileName)]); $count++) {
             $uniqueFileName = $extension === ''
                 ? "{$fileNameWithoutExtension} ({$count})"
                 : "{$fileNameWithoutExtension} ({$count}).{$extension}";
+
+            $this->nextDuplicateNumbers[$key] = $count + 1;
         }
 
-        $this->zipFileNames[$prefix.$uniqueFileName] = true;
+        $this->zipFileNames[mb_strtolower($prefix.$uniqueFileName)] = true;
 
         return $uniqueFileName;
     }
