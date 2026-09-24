@@ -1,8 +1,10 @@
 <?php
 
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Spatie\MediaLibrary\Conversions\Conversion;
 use Spatie\MediaLibrary\ResponsiveImages\Events\ResponsiveImagesGeneratedEvent;
+use Spatie\MediaLibrary\ResponsiveImages\Jobs\GenerateResponsiveImagesJob;
 use Spatie\MediaLibrary\ResponsiveImages\ResponsiveImageGenerator;
 use Spatie\MediaLibrary\ResponsiveImages\WidthCalculator\WidthCalculator;
 use Spatie\MediaLibrary\Support\FileRemover\DefaultFileRemover;
@@ -36,6 +38,18 @@ it('will generate responsive images if with responsive images if returns true', 
     expect($this->getTempDirectory("media/1/responsive-images/{$this->fileName}___media_library_original_237_195.jpg"))->toBeFile();
     expect($this->getTempDirectory("media/1/responsive-images/{$this->fileName}___media_library_original_284_234.jpg"))->toBeFile();
     expect($this->getTempDirectory("media/1/responsive-images/{$this->fileName}___media_library_original_340_280.jpg"))->toBeFile();
+});
+
+it('generates the responsive images on the queue the file adder was given', function () {
+    Queue::fake();
+
+    $this->testModel
+        ->addMedia($this->getTestJpg())
+        ->onQueue('responsive')
+        ->withResponsiveImages()
+        ->toMediaCollection();
+
+    Queue::assertPushedOn('responsive', GenerateResponsiveImagesJob::class);
 });
 
 it('will not generate responsive images if with responsive images if returns false', function () {
