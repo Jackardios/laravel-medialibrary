@@ -109,3 +109,13 @@ it('falls back to the originals disk for conversion urls when conversions_disk i
     // not the application default disk ('secondMediaDisk', /media2).
     expect($media->getUrl('thumb'))->toEqual("/media/{$media->id}/conversions/test-thumb.jpg");
 });
+
+it('leaves out the version of media without an update time', function () {
+    config()->set('media-library.version_urls', true);
+
+    $media = $this->testModel->addMedia($this->getTestJpg())->withResponsiveImages()->toMediaCollection()->fresh();
+    $media->updated_at = null;
+
+    expect($media->getUrl())->toBe("/media/{$media->id}/test.jpg")
+        ->and($media->getResponsiveImageUrls())->each->not->toContain('?v=');
+});

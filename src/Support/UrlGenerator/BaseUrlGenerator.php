@@ -88,7 +88,8 @@ abstract class BaseUrlGenerator implements UrlGenerator
 
     public function versionUrl(string $path = ''): string
     {
-        if (! $this->config->get('media-library.version_urls')) {
+        // Media without an update time (e.g. of a model that is not saved yet) has no version.
+        if (! $this->config->get('media-library.version_urls') || $this->media->updated_at === null) {
             return $path;
         }
 

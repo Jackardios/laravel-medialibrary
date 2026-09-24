@@ -45,7 +45,7 @@ class ResponsiveImage
 
         $url = $urlGenerator->getResponsiveImagesDirectoryUrl().rawurlencode($this->fileName);
 
-        if (config('media-library.version_urls') === true) {
+        if (config('media-library.version_urls') === true && $this->media->updated_at !== null) {
             $url = "{$url}?v={$this->media->updated_at->timestamp}";
         }
 
