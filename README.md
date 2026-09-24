@@ -41,7 +41,7 @@ on images and pdfs that have been added in the media library.
 composer require jackardios/laravel-medialibrary:^2.0
 ```
 
-The fork uses the same namespace as `spatie/laravel-medialibrary` and declares a conflict with it; remove that package first. Setting up the package (publishing the migration and the config, preparing models) works as described in the [upstream installation guide](https://spatie.be/docs/laravel-medialibrary/v11/installation-setup).
+The fork uses the same namespace as `spatie/laravel-medialibrary` and declares a conflict with it; remove that package first. It is an independent package: packages that require `spatie/laravel-medialibrary`, such as Media Library Pro or the Filament plugin, cannot be installed with it. Setting up the package (publishing the migration and the config, preparing models) works as described in the [upstream installation guide](https://spatie.be/docs/laravel-medialibrary/v11/installation-setup).
 
 ## How the fork differs from spatie/laravel-medialibrary
 

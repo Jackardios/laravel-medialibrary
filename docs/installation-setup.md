@@ -11,7 +11,7 @@ If you only use the base package issue this command:
 composer require "jackardios/laravel-medialibrary"
 ```
 
-If you have a license for Media Library Pro, you should install `spatie/laravel-media-library-pro` instead. Please refer to our [Media Library Pro installation instructions](https://spatie.be/docs/laravel-medialibrary/v11/handling-uploads-with-media-library-pro/installation) to continue.
+Packages that require `spatie/laravel-medialibrary`, such as Media Library Pro, cannot be installed with this package.
 
 ## Preparing the database
 
@@ -515,11 +515,3 @@ brew install svgo
 brew install gifsicle
 brew install libavif
 ```
-
-## Installing Media Library Pro
-
-[Media Library Pro](http://medialibrary.pro) is an optional add-on package that offers Blade, Vue, and React components to upload files to your application. It [integrates](https://spatie.be/docs/laravel-medialibrary/v11/handling-uploads-with-media-library-pro/introduction) beautifully with the laravel-medialibrary.
-
-You can buy a license for Media Library Pro on [the product page](https://spatie.be/products/media-library-pro) at spatie.be.
-
-To install Media Library Pro, you should follow [these instructions](https://spatie.be/docs/laravel-medialibrary/v11/handling-uploads-with-media-library-pro/installation).
