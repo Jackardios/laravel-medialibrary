@@ -1,23 +1,12 @@
-<div align="left">
-    <a href="https://spatie.be/open-source?utm_source=github&utm_medium=banner&utm_campaign=laravel-medialibrary">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="https://spatie.be/packages/header/laravel-medialibrary/html/dark.webp">
-        <img alt="Logo for laravel-medialibrary" src="https://spatie.be/packages/header/laravel-medialibrary/html/light.webp">
-      </picture>
-    </a>
-
 <h1>Associate files with Eloquent models</h1>
 
-[![Latest Version](https://img.shields.io/github/release/spatie/laravel-medialibrary.svg?style=flat-square)](https://github.com/spatie/laravel-medialibrary/releases)
-[![run-tests](https://github.com/spatie/laravel-medialibrary/actions/workflows/run-tests.yml/badge.svg)](https://github.com/spatie/laravel-medialibrary/actions/workflows/run-tests.yml)
-[![Total Downloads](https://img.shields.io/packagist/dt/spatie/laravel-medialibrary.svg?style=flat-square)](https://packagist.org/packages/spatie/laravel-medialibrary)
-    
-</div>
+[![run-tests](https://github.com/jackardios/laravel-medialibrary/actions/workflows/run-tests.yml/badge.svg)](https://github.com/jackardios/laravel-medialibrary/actions/workflows/run-tests.yml)
+[![static-analysis](https://github.com/jackardios/laravel-medialibrary/actions/workflows/static-analysis.yml/badge.svg)](https://github.com/jackardios/laravel-medialibrary/actions/workflows/static-analysis.yml)
+
+`jackardios/laravel-medialibrary` is a fork of [spatie/laravel-medialibrary](https://github.com/spatie/laravel-medialibrary). It follows upstream (2.x is based on spatie 11.23.8) and adds fixes and performance work on top. The API, the `Spatie\MediaLibrary` namespace and the configuration stay those of the original package, so existing code and the [upstream documentation](https://spatie.be/docs/laravel-medialibrary/v11) apply. Where the fork behaves differently, the `docs` directory of this repository says so.
 
 This package can associate all sorts of files with Eloquent models. It provides a
-simple API to work with. To learn all about it, head over to [the extensive documentation](https://spatie.be/docs/laravel-medialibrary).
-
-Here are a few short examples of what you can do:
+simple API to work with:
 
 ```php
 $newsItem = News::find(1);
@@ -41,76 +30,55 @@ The storage of the files is handled by [Laravel's Filesystem](https://laravel.co
 so you can use any filesystem you like. Additionally, the package can create image manipulations
 on images and pdfs that have been added in the media library.
 
-Spatie is a webdesign agency in Antwerp, Belgium. You'll find an overview of all our open source projects [on our website](https://spatie.be/opensource).
+## Requirements and installation
 
-## Support us
-
-[<img src="https://github-ads.s3.eu-central-1.amazonaws.com/laravel-medialibrary.jpg?t=2" width="419px" />](https://spatie.be/github-ad-click/laravel-medialibrary)
-
-We invest a lot of resources into creating [best in class open source packages](https://spatie.be/open-source). You can support us by [buying one of our paid products](https://spatie.be/open-source/support-us).
-
-We highly appreciate you sending us a postcard from your hometown, mentioning which of our package(s) you are using. You'll find our address on [our contact page](https://spatie.be/about-us). We publish all received postcards on [our virtual postcard wall](https://spatie.be/open-source/postcards).
-
-## Documentation
-
-You'll find the documentation on [https://spatie.be/docs/laravel-medialibrary](https://spatie.be/docs/laravel-medialibrary/v11).
-
-Find yourself stuck using the package? Found a bug? Do you have general questions or suggestions for improving the media library? Feel free to [create an issue on GitHub](https://github.com/spatie/laravel-medialibrary/issues), we'll try to address it as soon as possible.
-
-If you've found a bug regarding security please mail [security@spatie.be](mailto:security@spatie.be) instead of using the issue tracker.
-
-## Testing
-
-You can run the tests with:
+| version | PHP | Laravel |
+|---|---|---|
+| 2.x | 8.3 – 8.5 | 12, 13 |
+| 1.x | 8.2+ | 10, 11 |
 
 ```bash
-./vendor/bin/pest
+composer require jackardios/laravel-medialibrary:^2.0
 ```
 
-You can run the Github actions locally with [act](https://github.com/nektos/act). To run the tests locally, run:
+The fork uses the same namespace as `spatie/laravel-medialibrary` and declares a conflict with it; remove that package first. Setting up the package (publishing the migration and the config, preparing models) works as described in the [upstream installation guide](https://spatie.be/docs/laravel-medialibrary/v11/installation-setup).
 
-```
-act -j run-tests
-```
+## How the fork differs from spatie/laravel-medialibrary
 
-To run tests for a specific PHP/Laravel version, run:
-
-```
-act -j run-tests --matrix php:8.3 --matrix laravel:"11.*" --matrix dependency-version:prefer-stable 
-```
-
-Available `matrix` options are available in the [workflow file](.github/workflows/run-tests.yml).
+- **Safer url downloads.** `addMediaFromUrl` refuses urls that resolve to private or reserved addresses (localhost, the local network, cloud metadata services), checks every redirect, connects to the address it checked and stops downloading at `max_file_size`. Internal hosts can be trusted in the config. See [using a custom media downloader](docs/advanced-usage/using-a-custom-media-downloader.md).
+- **Safer file names.** Besides upstream's extension blocklist, `.user.ini` and `web.config` are refused, and the default sanitizer also replaces the characters Windows does not allow and renames reserved device names such as `CON`.
+- **Separate conversions disk done right.** Urls, srcsets, regeneration, existence checks, renames, moves, mail attachments and deletion all use the conversions disk.
+- **Responsive images kept consistent.** They are replaced only once a new set has been generated, renamed with the media, and removed exactly.
+- **`media-library:regenerate`** behaves as upstream's by default and offers the fork's fast paths: `--queue-all` queues one job per media that downloads the original once for all conversions and responsive images, and `--trust-database` lets `--only-missing` read the `generated_conversions` column instead of the disk.
+- **Faster url and html building.** A media keeps its conversion collection while its urls are built, conversions build their optimizers only to perform, and a srcset builds one url generator instead of one per image.
+- Many smaller fixes; see the [changelog](CHANGELOG.md).
 
 ## Upgrading
 
-Please see [UPGRADING](UPGRADING.md) for details.
+Please see [UPGRADING](UPGRADING.md) for the steps from 1.x to 2.0.
 
-### Changelog
+## Changelog
 
-Please see [CHANGELOG](CHANGELOG.md) for more information what has changed recently.
+Please see [CHANGELOG](CHANGELOG.md) for what has changed.
 
-## Contributing
+## Testing
 
-Please see [CONTRIBUTING](https://github.com/spatie/.github/blob/main/CONTRIBUTING.md) for details.
+```bash
+composer test
+```
+
+The S3 tests run against any S3-compatible server when `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` and `AWS_BUCKET` are set, together with `AWS_ENDPOINT`, `AWS_URL` and `AWS_USE_PATH_STYLE_ENDPOINT=1` for MinIO. The [workflow](.github/workflows/run-tests.yml) shows how CI starts one.
 
 ## Security
 
-If you discover any security related issues, please email [security@spatie.be](mailto:security@spatie.be) instead of using the issue tracker.
+If you discover a security issue, please report it [privately on GitHub](https://github.com/jackardios/laravel-medialibrary/security/advisories/new) instead of using the issue tracker.
 
 ## Credits
 
-- [Freek Van der Herten](https://github.com/freekmurze)
-- [All Contributors](../../contributors)
+This package is a fork of [spatie/laravel-medialibrary](https://github.com/spatie/laravel-medialibrary) by [Spatie](https://spatie.be).
 
-A big thank you to [Nicolas Beauvais](https://github.com/nicolasbeauvais) for helping out with the issues on this repo.
-
-Special thanks to [Caneco](https://twitter.com/caneco) for the original logo.
-
-## Alternatives
-
-- [laravel-mediable](https://github.com/plank/laravel-mediable)
-- [laravel-stapler](https://github.com/CodeSleeve/laravel-stapler)
-- [media-manager](https://github.com/talvbansal/media-manager)
+- [Freek Van der Herten](https://github.com/freekmurze) and [all contributors of the original package](https://github.com/spatie/laravel-medialibrary/graphs/contributors)
+- [Jackardios](https://github.com/jackardios), maintainer of the fork
 
 ## License
 

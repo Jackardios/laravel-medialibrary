@@ -2,17 +2,69 @@
 
 Because there are many breaking changes an upgrade is not that easy. There are many edge cases this guide does not cover. We accept PRs to improve this guide.
 
-## From v10 to v11
+## From jackardios/laravel-medialibrary 1.x to 2.0
+
+2.0 brings the fork up to spatie/laravel-medialibrary 11.23.8, so it also contains every upstream change since 11.7.3. The [changelog](CHANGELOG.md) lists them.
+
+### Requirements
+
+- PHP 8.3 or higher and Laravel 12 or 13. Stay on 1.x for Laravel 10/11 or PHP 8.2.
+- Update the constraint: `composer require jackardios/laravel-medialibrary:^2.0`. The package conflicts with `spatie/laravel-medialibrary`; remove that one if it is still installed.
+
+### Database and config
+
+- No migration is needed.
+- New config keys are merged from the package's config automatically. If you published the config, compare it with `config/media-library.php` of the package: `media_downloader_blocks_private_networks`, `media_downloader_trusted_hosts`, `conversions_disk_name`, `queue_conversions_after_database_commit` (default `true`), `disallowed_extensions` / `allowed_extensions`, `media_observer`, `temporary_url_default_lifetime`, `ffmpeg_timeout`, `ffmpeg_threads`.
+
+### Adding media
+
+- **Urls on private networks.** `addMediaFromUrl` throws `InvalidUrl` for a url whose host, or a host it redirects to, resolves to a private or reserved address. If you download from internal hosts, list them in `media_downloader_trusted_hosts` (wildcards allowed), or set `MEDIA_DOWNLOADER_BLOCKS_PRIVATE_NETWORKS=false` when every url is trusted. A download bigger than `max_file_size` now stops with `FileIsTooBig` while downloading. Tests using `Http::fake()` with the `HttpFacadeDownloader` are not affected. A custom downloader has to protect itself; it can use `Spatie\MediaLibrary\Downloaders\UrlGuard`.
+- **Refused file names.** File names with a dangerous segment (`.php`, `.phtml`, `.phar`, `.htaccess`, `.cgi`, `.asp`, `.jsp`, ... anywhere in the name), `.user.ini` and `web.config` throw `FileNameNotAllowed`. Validate uploads in your application to answer with a validation error instead of a server error. `allowed_extensions` / `disallowed_extensions` in the config adjust the list.
+- **Sanitized file names.** The default sanitizer also replaces `: * ? " < > |` with `-`, strips trailing dots and spaces and prefixes reserved Windows names (`CON`, `NUL`, `COM1`, ...) with `_`. New media may therefore get different file names than before; existing media keep theirs. Use `sanitizingFileName()` to keep your own rules.
+- Files from urls without an extension get the usual extension of their type (`jpg`, not `jpeg`).
+- `updateMedia()` throws `MediaCannotBeUpdated` when an item belongs to another model.
+
+### Regenerating
+
+- `media-library:regenerate --only-missing` checks the conversions disk again, as upstream does. To keep 1.x's faster behaviour, which trusted the `generated_conversions` column, add `--trust-database`.
+- Remove `--verify-existence` from your scripts: it no longer exists, checking the disk is the default.
+- With an asynchronous queue connection, 1.x queued one job per media for everything. 2.0 runs non-queued conversions in the command's process and queues the queued ones, as upstream does. Add `--queue-all` (or `--queue-connection=...`) to get one `RegenerateMediaJob` per media again.
+- `--with-responsive-images` regenerates the responsive images of the original only for media that has them.
+- `FileManipulator::regenerateDerivedFiles()` and `RegenerateMediaJob` keep their signatures; with `$verifyExistence = true` the disk decides what is missing.
+
+### Behaviour you may rely on
+
+- `toResponse()` / `toInlineResponse()` of a missing file throw `FileDoesNotExist` before sending; `Media::copy()` and `copyFromMediaLibrary()` throw `FileDoesNotExist` when the original is missing.
+- A conversion is sent and attached under its own file name and mime type.
+- Renaming a media throws `MediaCannotBeUpdated` when its file cannot be moved.
+- The values of an image tag's extra attributes are escaped. Pass plain values, not HTML.
+- Urls of disks with a configured `url` percent-encode the file name. Urls of media without `updated_at` have no `?v=` version.
+- `ResponsiveImagesGeneratedEvent` and `ConversionHasBeenCompletedEvent` fire once the result is saved.
+- The responsive images job, like the conversion jobs, is queued after the database commit when `queue_conversions_after_database_commit` is on.
+- The `MediaRepository` getters return a `LazyCollection` (upstream 11.7.6).
+- Deleting media removes the files of the conversions that are registered; files of conversions you removed from your code stay on the disk.
+- `media-library:clean` also removes unknown directories on every disk the media table uses. Check its dry run (`--dry-run`) before running it on a disk that holds other files.
+- A conversion collection is kept for the 16 media used last while their attributes are unchanged. If you change config (such as `file_namer`) at runtime, use fresh media instances.
+
+### Removed
+
+- `ResponsiveImageGenerator::cleanResponsiveImages()` (protected). Responsive images are replaced once the new set has been generated.
+
+## Upgrading spatie/laravel-medialibrary
+
+The sections below come from the original package.
+
+### From v10 to v11
 
 - Image v3 is now used. Make sure to update your image conversions to the new syntax. See [the image docs](https://spatie.be/docs/image/v3) for more info.
 - All event names have gained the `Event` suffix. For example `Spatie\MediaLibrary\MediaCollections\Events\MediaHasBeenAdded` is now `Spatie\MediaLibrary\MediaCollections\Events\MediaHasBeenAddedEvent`.
 
 
-## From v9 to v10
+### From v9 to v10
 
 Upgrading from v9 to v10 is straightforward. The biggest change is that we dropped support for PHP 7, and are using PHP 8 features.
 
-## From v8 to v9
+### From v8 to v9
 
 - add a `json` column `generated_conversions` to the `media` table (take a look at the default migration for the exact definition). You should copy the values you now have in the `generated_conversions` key of the `custom_properties` column to `generated_conversions`
 - You can create this migration by running `php artisan make:migration AddGeneratedConversionsToMediaTable`.
@@ -79,7 +131,7 @@ class AddGeneratedConversionsToMediaTable extends Migration {
 - in several releases of v8 config options were added. We recommend going over your config file in `config/media-library.php` and add any options that are present in the default config file that ships with this package.
 - Media collection serialization has changed to support the newly introduced Media Library Pro components. If you are returning media collections directly from your controllers or serializing them to json manually then you can retain existing behaviour by setting `use_default_collection_serialization` to `true` inside `config/media-library.php`
 
-## From v7 to v8
+### From v7 to v8
 
 - internally the media library has been restructured and nearly all namespaces have changed. Class names remained the same. In your application code hunt to any usages of classes that start with `Spatie\MediaLibrary`. Take a look in the source code of medialibrary what the new namespace of the class is and use that. 
 - rename `config/medialibrary.php` to `config/media-library.php`
@@ -191,13 +243,13 @@ class RenameResponsiveImagesCollectionNameInMedia extends Migration
 }
 ```
 
-## 7.3.0
+### 7.3.0
 
 - Before `hasGeneratedConversion` will work, the custom properties 
 of every media item will have to be re-written in the database, or all conversions must be regenerated.
 This won't break any existing code, but in order to use the new feature, you will need to do a manual update of your media items.
 
-## 7.1.0
+### 7.1.0
 
 - The `Filesystem` interface is removed, and the `DefaultFilesystem` implementation is renamed to `Filesystem`.
 If you want your own filesystem implementation, you should extend the `Filesystem` class.
@@ -205,7 +257,7 @@ If you want your own filesystem implementation, you should extend the `Filesyste
 - The `default_filesystem` config key has been changed to `disk_name`.
 - The `custom_url_generator_class` and `custom_path_generator_class` config keys have been changed to `url_generator` and `path_generator`. (commit ba46d8008d26542c9a5ef0e39f779de801cd4f8f)
 
-## From v6 to v7
+### From v6 to v7
 
 - add the `responsive_images` column in the media table: `$table->json('responsive_images');`
 - rename the `use Spatie\MediaLibrary\HasMedia\Interfaces\HasMedia;` interface to `use Spatie\MediaLibrary\HasMedia\HasMedia;`
@@ -214,7 +266,7 @@ If you want your own filesystem implementation, you should extend the `Filesyste
 - `Spatie\MediaLibrary\Media` has been moved to `Spatie\MediaLibrary\Models\Media`. Update the namespace import of `Media` across your app
 - The method definitions of `Spatie\MediaLibrary\Filesystem\Filesystem::add` and `Spatie\MediaLibrary\Filesystem\Filesystem::copyToMediaLibrary` are changed, they now use nullable string typehints for `$targetFileName` and `$type`.
 
-## From v5 to v6
+### From v5 to v6
 
 - the signature of `registerMediaConversions` has been changed.
 
@@ -236,7 +288,7 @@ to
  - `toMediaLibraryOnCloudDisk` has been removed. Use `toMediaCollectionOnCloudDisk` instead.
 
 
-## From v4 to v5
+### From v4 to v5
 - rename `config/laravel-medialibrary` to `config/medialibrary.php`. Some keys have been added or renamed. Please compare your config file against the one provided by this package
 - all calls to `toCollection` and `toCollectionOnDisk` and `toMediaLibraryOnDisk` should be renamed to `toMediaLibrary`
 - media conversions are now handled by `spatie/image`. Convert all manipulations on your conversion to manipulations supported by `spatie/image`.
@@ -247,11 +299,11 @@ to
 - `image_generators` have now been added to the config file.
 
 
-## From v3 to v4
+### From v3 to v4
 - All exceptions have been renamed. If you were catching media library specific exception please look up the new name in /src/Exceptions.
 - Glide has been upgraded from 0.3 in 1.0. Glide renamed some operations in their 1.0 release, most notably the `crop` and `fit` ones. If you were using those in your conversions refer the Glide documentation how they should be changed.
 
-## From v2 to v3
+### From v2 to v3
 You can upgrade from v2 to v3 by performing these renames in your model that has media.
 
 - `Spatie\MediaLibrary\HasMediaTrait` has been renamed to `Spatie\MediaLibrary\HasMedia\HasMediaTrait`.
@@ -272,6 +324,6 @@ from the default collection would be returned)
 it would only return try if files were present in the default collection)
 - the `addMedia`-function has been replaced by a fluent interface.
 
-## From v1 to v2
+### From v1 to v2
 Because v2 is a complete rewrite a simple upgrade path is not available.
 If you want to upgrade completely remove the v1 package and follow install instructions of v2.

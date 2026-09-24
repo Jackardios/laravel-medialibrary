@@ -1,6 +1,73 @@
 # Changelog
 
-All notable changes to `laravel-medialibrary` will be documented in this file
+All notable changes to `jackardios/laravel-medialibrary` will be documented in this file. Entries before 1.0.0 are the releases of spatie/laravel-medialibrary.
+
+## 2.0.0 - unreleased
+
+2.0 is based on spatie/laravel-medialibrary **11.23.8** and includes every upstream change from 11.7.4 on (listed below this entry). [UPGRADING](UPGRADING.md) has the steps from 1.x.
+
+### Requirements
+
+- PHP 8.3 – 8.5, Laravel 12 or 13, symfony/console 7.2 or 8. Laravel 10/11 and PHP 8.2 stay on 1.x.
+- The package keeps the `Spatie\MediaLibrary` namespace and now declares a conflict with `spatie/laravel-medialibrary`.
+
+### Security
+
+- `addMediaFromUrl` refuses urls whose host resolves to a private or reserved address (loopback, private networks, link-local addresses such as cloud metadata services, and more), including every redirect. The downloaders connect to the address they checked and stop at `max_file_size` while downloading. New config keys `media_downloader_blocks_private_networks` (`MEDIA_DOWNLOADER_BLOCKS_PRIVATE_NETWORKS`, default `true`) and `media_downloader_trusted_hosts`; new `Spatie\MediaLibrary\Downloaders\UrlGuard` for custom downloaders.
+- Upstream's blocklist of dangerous file names: a segment such as `.php`, `.phtml`, `.phar`, `.htaccess`, `.cgi`, `.asp` or `.jsp` anywhere in the name throws `FileNameNotAllowed`; new config keys `disallowed_extensions` and `allowed_extensions` (upstream 11.23.0). The fork also refuses `.user.ini` and `web.config`.
+- The default file name sanitizer also replaces `: * ? " < > |`, strips trailing dots and spaces, and prefixes reserved Windows device names (`CON`, `NUL`, `COM1`, `LPT1`, ...) with `_`.
+- The values of the extra attributes of an image tag (`img(extraAttributes: [...])`, `attributes()`) are escaped.
+- `zip_filename_prefix` can no longer climb out of the zip with `..` (upstream 11.23.1).
+- `updateMedia()` throws `MediaCannotBeUpdated` for media that belongs to another model instead of changing it.
+
+### Changed
+
+- `media-library:regenerate` behaves as upstream's by default: `--only-missing` checks the conversions disk, and non-queued conversions run in the command's process. The fork's fast paths are opt-in: `--trust-database` (decide "missing" from the `generated_conversions` column) and `--queue-all` (one `RegenerateMediaJob` per media that downloads the original once); `--queue-connection` implies `--queue-all`. `--verify-existence` is gone, its behaviour is the default. The command exits with a failure status when a media could not be regenerated.
+- `--with-responsive-images` regenerates the responsive images of the original only for media that has them.
+- A download response (`toResponse()`, `toInlineResponse()`) of a missing file throws `FileDoesNotExist` before anything is sent. A conversion is sent, and attached to mails, under its own file name and mime type.
+- `Media::copy()` and `Filesystem::copyFromMediaLibrary()` throw `FileDoesNotExist` when the original is missing from its disk.
+- Renaming a media throws `MediaCannotBeUpdated` when its file cannot be moved, instead of saving a name that points to no file.
+- Files added from urls without an extension get the usual extension of their type (`jpg` for `image/jpeg`, `svg` for `image/svg+xml`).
+- Temporary files made by `addMediaFromUrl/String/Base64/Stream` are removed once the media is added or rejected, also with `preservingOriginal()`.
+- Adding media to an unsaved model uses the options of its own file adder, and adding media to a model whose `media` relation is loaded adds the media to that relation.
+- `ResponsiveImagesGeneratedEvent` fires once the whole set, including the tiny placeholder, is recorded; `ConversionHasBeenCompletedEvent` fires once the conversion is recorded.
+- The responsive images job is queued after the database commit when `queue_conversions_after_database_commit` is on, like the conversion jobs. Jobs of media that was deleted before they ran are discarded.
+- Urls of disks with a configured `url` (S3 behind a CDN, R2, ...) percent-encode the file name, as urls of local disks do.
+- Urls of media without `updated_at` leave out the `?v=` version.
+- The optimizer chain of a conversion is built from `image_optimizers` when its manipulations are read instead of when the conversion is registered.
+- A media keeps its conversion collection while its attributes are unchanged, for the 16 media used last.
+
+### Fixed
+
+- A separate conversions disk is used everywhere: srcsets of the original, `--only-missing`, renames, moves on update (`moves_media_on_update`), mail attachments and removal. Media without a `conversions_disk` falls back to its own disk.
+- Responsive images are replaced only once the new set has been generated, so a failure keeps the previous set; the previous files are removed afterwards. Removing or renaming them no longer touches the images of conversions whose name starts with the same text, and deleting one responsive image keeps the others of its conversion.
+- Renamed responsive images are named through the file namer and are removed when the media is deleted.
+- `addMediaFromDisk` on the same disk keeps the source file when the copy fails, and sanitizes and names the file once.
+- A conversion that fails while the media is added still enforces the collection size limit (`singleFile()`).
+- Regenerating after a manipulation change restores the model event dispatcher when a conversion fails (Octane, queue workers).
+- A conversion without manipulations no longer takes away the original that later conversions and responsive images use.
+- Conversion names resolve to the conversion of the media's collection when several collections register the same name.
+- Base64 data uris with parameters (`data:image/png;name=a.png;base64,...`) are accepted.
+- Every file in a media zip gets a unique name, also when a file is already named like a numbered duplicate.
+- The temporary directories of responsive image generation and `Media::copy()` are removed when they fail.
+- Conversion existence checks work with Windows separators and roots with a trailing slash.
+
+### Performance
+
+- Conversions build their optimizer chain and file namer only when needed, and a media keeps its conversion collection while its urls are built: a conversion url needs 24 instead of 43 container resolutions, an `img()` tag with eight responsive images 53 instead of 185.
+- A srcset builds one url generator for the whole set instead of one per image; `hasResponsiveImages()` no longer builds urls.
+- A media collection is no longer a reference cycle.
+- A zip of local files no longer allocates 16 MiB per file.
+- Renaming a media checks only the conversions of its collection and no longer loads the media again.
+
+### Removed
+
+- The `--verify-existence` option of `media-library:regenerate` (now the default behaviour).
+- `ResponsiveImageGenerator::cleanResponsiveImages()` (protected).
+
+## 1.0.0
+
+The first release of the fork: spatie/laravel-medialibrary 11.7.3 with the fork's changes — faster `media-library:regenerate` (one job per media, `--only-missing` trusting the database), the conversions disk used for regeneration, removal, mail attachments and urls, renamed responsive images, a memoized conversion collection, and casts of manipulation enums stored in the database. Requires PHP 8.2+ and Laravel 10 or 11.
 
 ## 11.23.8 - 2026-09-14
 
