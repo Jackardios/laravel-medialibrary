@@ -184,15 +184,6 @@ abstract class TestCase extends Orchestra
         File::makeDirectory($directory);
     }
 
-    public function getTestsPath($suffix = ''): string
-    {
-        if ($suffix !== '') {
-            $suffix = "/{$suffix}";
-        }
-
-        return __DIR__.$suffix;
-    }
-
     public function getTempDirectory(string $suffix = ''): string
     {
         // Each `--parallel` worker gets its own directory: every test wipes and recreates it.
