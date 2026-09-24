@@ -23,6 +23,7 @@ use Spatie\MediaLibrary\Conversions\Conversion;
 use Spatie\MediaLibrary\Conversions\ConversionCollection;
 use Spatie\MediaLibrary\Conversions\ImageGenerators\ImageGeneratorFactory;
 use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidConversion;
 use Spatie\MediaLibrary\MediaCollections\FileAdder;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
@@ -465,6 +466,14 @@ class Media extends Model implements Attachable, Htmlable, Responsable
     {
         $filename = str_replace('"', '\'', Str::ascii($this->getDownloadFilename()));
 
+        // Open the file before sending the headers, so a missing file fails the response instead
+        // of a 200 with a broken body.
+        $stream = $this->stream($conversion);
+
+        if (! is_resource($stream)) {
+            throw FileDoesNotExist::create($this->getPathRelativeToRoot($conversion));
+        }
+
         $size = $conversion !== ''
             ? Storage::disk($this->conversions_disk)->size($this->getPathRelativeToRoot($conversion))
             : $this->size;
@@ -477,9 +486,7 @@ class Media extends Model implements Attachable, Htmlable, Responsable
             'Pragma' => 'public',
         ];
 
-        return response()->stream(function () use ($conversion) {
-            $stream = $this->stream($conversion);
-
+        return response()->stream(function () use ($stream) {
             while (! feof($stream)) {
                 echo fread($stream, $this->streamChunkSize);
                 flush();

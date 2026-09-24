@@ -1,5 +1,6 @@
 <?php
 
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidConversion;
 use Spatie\TemporaryDirectory\TemporaryDirectory;
 
@@ -42,3 +43,11 @@ test('to response throws on non-existing conversions', function () {
     expect(fn () => $media->toResponse(request(), 'non-existing-conversion'))
         ->toThrow(InvalidConversion::class, 'There is no conversion named `non-existing-conversion`');
 });
+
+test('to response throws before sending anything when the file is missing', function (string $conversion) {
+    $media = $this->testModelWithConversion->addMedia($this->getTestJpg())->toMediaCollection();
+
+    unlink($media->getPath($conversion));
+
+    expect(fn () => $media->toResponse(request(), $conversion))->toThrow(FileDoesNotExist::class);
+})->with(['original' => '', 'conversion' => 'thumb']);
