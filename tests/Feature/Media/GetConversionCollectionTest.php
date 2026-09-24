@@ -91,7 +91,7 @@ it('does not memoize conversions registered using the model instance', function 
         ->and(conversionNames($first))->toBe(['lazy-conversion', 'eager-conversion']);
 });
 
-it('registers the conversions once while building urls and a srcset', function () {
+it('registers the conversions once while building urls and a srcset and listing them', function () {
     $model = TestModelWithCountedConversions::first();
 
     $media = $model->addMedia($this->getTestJpg())->toMediaCollection();
@@ -104,6 +104,7 @@ it('registers the conversions once while building urls and a srcset', function (
     }
 
     $srcset = $media->getSrcset('thumb');
+    $media->getMediaConversionNames();
 
     expect($srcset)->not->toBe('')
         ->and(TestModelWithCountedConversions::$registrations)->toBe(1);

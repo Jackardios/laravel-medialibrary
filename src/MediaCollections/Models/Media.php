@@ -385,9 +385,7 @@ class Media extends Model implements Attachable, Htmlable, Responsable
 
     public function getMediaConversionNames(): array
     {
-        $conversions = ConversionCollection::createForMedia($this);
-
-        return $conversions->map(fn (Conversion $conversion) => $conversion->getName())->toArray();
+        return $this->getConversionCollection()->map(fn (Conversion $conversion) => $conversion->getName())->toArray();
     }
 
     public function getGeneratedConversions(): Collection
