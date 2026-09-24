@@ -458,6 +458,17 @@ it('will throw an exception when a remote file has an invalid mime type', functi
         ->toMediaCollection();
 });
 
+it('can add a remote file with an allowed mime type', function () {
+    config()->set('media-library.media_downloader_trusted_hosts', ['127.0.0.1']);
+
+    $media = $this->testModel
+        ->addMediaFromUrl(LocalHttpServer::url('/files/test.jpg'), ['image/png', 'image/jpeg'])
+        ->toMediaCollection();
+
+    expect($media->mime_type)->toBe('image/jpeg')
+        ->and($media->getPath())->toBeFile();
+});
+
 it('can rename the media before it gets added', function () {
     $media = $this->testModel
         ->addMedia($this->getTestJpg())
