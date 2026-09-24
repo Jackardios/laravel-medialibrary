@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
+use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
 use Spatie\MediaLibrary\Conversions\FileManipulator;
 use Spatie\MediaLibrary\Conversions\Jobs\RegenerateMediaJob;
@@ -22,12 +23,12 @@ class RegenerateCommand extends Command
     {--starting-from-id= : Regenerate media with an id equal to or higher than the provided value}
     {--X|exclude-starting-id : Exclude the provided id when regenerating from a specific id}
     {--only-missing : Regenerate only missing conversions}
-    {--verify-existence : With --only-missing, confirm each conversion file exists on disk (slower; one request per conversion on remote disks)}
+    {--trust-database : With --only-missing, treat a conversion as missing when the generated_conversions column does not mark it, instead of checking the disk}
     {--with-responsive-images : Regenerate responsive images}
     {--eager-models : Eager load the related model (avoids an N+1 for conversions registered using the model instance)}
-    {--queue-connection= : Dispatch a job per media onto this queue connection (overrides media-library.queue_connection_name; point it at an async connection to offload regeneration even when the configured one is sync)}
     {--force : Force the operation to run when in production}
-    {--queue-all : Dispatch a regeneration job per media even when the resolved queue connection is sync (upstream compatibility)}';
+    {--queue-all : Queue one job per media that regenerates all of its conversions, even non-queued ones}
+    {--queue-connection= : The queue connection for --queue-all (implies --queue-all; defaults to media-library.queue_connection_name)}';
 
     protected $description = 'Regenerate the derived images of media';
 
@@ -37,31 +38,28 @@ class RegenerateCommand extends Command
 
     protected array $errorMessages = [];
 
-    public function handle(MediaRepository $mediaRepository, FileManipulator $fileManipulator): void
+    public function handle(MediaRepository $mediaRepository, FileManipulator $fileManipulator): int
     {
         $this->mediaRepository = $mediaRepository;
 
         $this->fileManipulator = $fileManipulator;
 
         if (! $this->confirmToProceed()) {
-            return;
+            return self::SUCCESS;
         }
 
         $only = Arr::wrap($this->option('only'));
         $onlyMissing = (bool) $this->option('only-missing');
         $withResponsiveImages = (bool) $this->option('with-responsive-images');
-        $verifyExistence = (bool) $this->option('verify-existence');
+        $trustDatabase = (bool) $this->option('trust-database');
 
-        if ($verifyExistence && ! $onlyMissing) {
-            $this->warn('The --verify-existence option only has an effect together with --only-missing; ignoring it.');
-            $verifyExistence = false;
+        if ($trustDatabase && ! $onlyMissing) {
+            $this->warn('The --trust-database option only has an effect together with --only-missing; ignoring it.');
+            $trustDatabase = false;
         }
 
-        // Respect the configured queue connection, just like the rest of the package: a `sync`
-        // connection regenerates inline in this process, an async connection offloads one job
-        // per media to the workers. `--queue-connection` overrides the connection for a single run.
-        $connection = $this->resolveQueueConnection();
-        $shouldDispatch = $connection !== 'sync' || (bool) $this->option('queue-all');
+        $queueAll = $this->option('queue-all') || $this->option('queue-connection');
+        $connection = $queueAll ? $this->resolveQueueConnection() : null;
 
         $query = $this->getMediaQueryToBeRegenerated();
 
@@ -72,8 +70,7 @@ class RegenerateCommand extends Command
             $query->with('model');
         }
 
-        if (! $shouldDispatch) {
-            // The whole regeneration runs in this process; lift the execution time limit.
+        if (config('media-library.queue_connection_name') === 'sync' || $connection === 'sync') {
             set_time_limit(0);
         }
 
@@ -82,27 +79,20 @@ class RegenerateCommand extends Command
         // Stream media in id-ordered chunks so memory stays flat regardless of library size.
         $query->lazyById()->each(function (Media $media) use (
             $progressBar,
-            $shouldDispatch,
             $connection,
             $only,
             $onlyMissing,
             $withResponsiveImages,
-            $verifyExistence,
+            $trustDatabase,
             &$dispatchedJobs
         ) {
             try {
-                if ($shouldDispatch) {
-                    $this->dispatchRegenerateJob($media, $connection, $only, $onlyMissing, $withResponsiveImages, $verifyExistence);
+                if ($connection !== null) {
+                    $this->dispatchRegenerateJob($media, $connection, $only, $onlyMissing, $withResponsiveImages, ! $trustDatabase);
 
                     $dispatchedJobs++;
                 } else {
-                    $this->fileManipulator->regenerateDerivedFiles(
-                        $media,
-                        $only,
-                        $onlyMissing,
-                        $withResponsiveImages,
-                        $verifyExistence
-                    );
+                    $this->regenerate($media, $only, $onlyMissing, $withResponsiveImages, $trustDatabase);
                 }
             } catch (Throwable $exception) {
                 $this->errorMessages[$media->getKey()] = $exception->getMessage();
@@ -116,7 +106,7 @@ class RegenerateCommand extends Command
         $this->newLine(2);
 
         if (count($this->errorMessages)) {
-            $this->warn($shouldDispatch
+            $this->warn($connection !== null
                 ? 'Done queueing, but with some error messages:'
                 : 'All done, but with some error messages:');
 
@@ -125,12 +115,61 @@ class RegenerateCommand extends Command
             }
         }
 
-        if ($shouldDispatch) {
+        if ($connection !== null) {
             $this->info("Queued {$dispatchedJobs} media for regeneration on the '{$connection}' connection.");
-            $this->info('Make sure queue workers are running to process them.');
+
+            if ($connection !== 'sync') {
+                $this->info('Make sure queue workers are running to process them.');
+            }
         } else {
             $this->info('All done!');
         }
+
+        return count($this->errorMessages) ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * Regenerate one media in this process, the way conversions are created when media is added:
+     * non-queued conversions run here, queued ones are dispatched to the queue.
+     */
+    protected function regenerate(Media $media, array $only, bool $onlyMissing, bool $withResponsiveImages, bool $trustDatabase): void
+    {
+        if ($onlyMissing && $trustDatabase) {
+            // Decide from the generated_conversions column instead of asking the disk: hand only
+            // the conversions it does not mark as generated to the regular flow.
+            $missing = $media->getMediaConversionNames();
+
+            if (count($only) > 0) {
+                $missing = array_intersect($missing, $only);
+            }
+
+            $missing = array_values(array_filter(
+                $missing,
+                fn (string $conversionName) => ! $media->hasGeneratedConversion($conversionName)
+            ));
+
+            if ($missing === []) {
+                // Nothing to convert (an empty list would mean "every conversion" below).
+                if ($withResponsiveImages) {
+                    $this->fileManipulator->regenerateDerivedFiles($media, [], true, true);
+                }
+
+                return;
+            }
+
+            $only = $missing;
+            $onlyMissing = false;
+        }
+
+        $this->fileManipulator->createDerivedFiles($media, $only, $onlyMissing, $withResponsiveImages);
+    }
+
+    /**
+     * @deprecated Use getMediaQueryToBeRegenerated(), which the command streams with lazyById().
+     */
+    public function getMediaToBeRegenerated(): LazyCollection
+    {
+        return $this->getMediaQueryToBeRegenerated()->lazyById();
     }
 
     /** @return Builder<Media> */
@@ -177,10 +216,9 @@ class RegenerateCommand extends Command
     }
 
     /**
-     * Resolve the queue connection the regeneration should run on. An explicit
-     * `--queue-connection` wins; otherwise the package's `queue_connection_name` is used, falling
-     * back to the application's default queue connection. A `sync` result runs inline, anything
-     * else dispatches one job per media.
+     * The queue connection for --queue-all: an explicit `--queue-connection` wins, then the
+     * package's `queue_connection_name`, then the application's default connection. On `sync`
+     * the jobs run right away in this process.
      */
     protected function resolveQueueConnection(): string
     {

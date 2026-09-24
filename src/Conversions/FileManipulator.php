@@ -66,9 +66,11 @@ class FileManipulator
      * Regenerate every derived file for a single media as one atomic unit of work.
      *
      * Unlike createDerivedFiles(), this does not partition conversions into queued/non-queued
-     * (the whole media is the unit of work, dispatched per-media by the regenerate command), it
-     * downloads the original only once and reuses it for both conversions and responsive images,
-     * and it decides "missing" from the `generated_conversions` column instead of hitting storage.
+     * (the whole media is the unit of work, see `media-library:regenerate --queue-all`), and it
+     * downloads the original only once and reuses it for both conversions and responsive images.
+     *
+     * With `onlyMissing`, a conversion is missing when the `generated_conversions` column does
+     * not mark it, or, with `verifyExistence`, when its file is not on the conversions disk.
      */
     public function regenerateDerivedFiles(
         Media $media,
@@ -97,6 +99,10 @@ class FileManipulator
 
         // Nothing to do — skip the (potentially remote) download of the original entirely.
         if ($conversions->isEmpty() && ! $needsResponsiveImages) {
+            if ($media->isDirty('generated_conversions')) {
+                $media->save();
+            }
+
             return;
         }
 
@@ -166,9 +172,9 @@ class FileManipulator
     /**
      * Remove conversions that are already generated.
      *
-     * By default this trusts the `generated_conversions` column (no storage round-trips). When
-     * `verifyExistence` is set, a conversion the column believes is generated is additionally
-     * confirmed against the conversions disk — so files deleted out-of-band get regenerated.
+     * By default this trusts the `generated_conversions` column (no storage round-trips). With
+     * `verifyExistence` the conversions disk decides, as for createDerivedFiles(): files deleted
+     * out-of-band get regenerated, and a file that exists but lost its mark gets the mark back.
      */
     protected function rejectAlreadyGeneratedConversions(
         ConversionCollection $conversions,
@@ -181,13 +187,19 @@ class FileManipulator
         }
 
         return $conversions->reject(function (Conversion $conversion) use ($media, $verifyExistence) {
-            if (! $media->hasGeneratedConversion($conversion->getName())) {
+            if (! $verifyExistence) {
+                return $media->hasGeneratedConversion($conversion->getName());
+            }
+
+            if (! $this->conversionFileExists($media, $conversion->getName())) {
                 return false;
             }
 
-            return $verifyExistence
-                ? $this->conversionFileExists($media, $conversion->getName())
-                : true;
+            if (! $media->hasGeneratedConversion($conversion->getName())) {
+                $media->markAsConversionGenerated($conversion->getName(), persist: false);
+            }
+
+            return true;
         });
     }
 
