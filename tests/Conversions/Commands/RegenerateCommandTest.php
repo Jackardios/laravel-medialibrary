@@ -416,6 +416,39 @@ it('can force queue non-queued conversions', function () {
     Queue::assertPushed(RegenerateMediaJob::class);
 });
 
+it('queues jobs that look for missing conversions on the disk unless the database is trusted', function (bool $trustDatabase, bool $regenerated) {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    // The thumb stays marked as generated, but its file is gone.
+    unlink($thumb = $this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg"));
+
+    $keptConversion = $this->getMediaDirectory("{$media->id}/conversions/test-keep_original_format.jpg");
+    expect($keptConversion)->toBeFile();
+    touch($keptConversion, time() - 3600);
+
+    Queue::fake();
+
+    $this->artisan('media-library:regenerate', [
+        '--queue-all' => true,
+        '--only-missing' => true,
+        '--trust-database' => $trustDatabase,
+    ]);
+
+    Queue::assertPushed(RegenerateMediaJob::class, 1);
+
+    Queue::pushed(RegenerateMediaJob::class)->first()->handle(app(FileManipulator::class));
+
+    clearstatcache();
+
+    expect(file_exists($thumb))->toBe($regenerated)
+        ->and(filemtime($keptConversion))->toBeLessThan(time() - 60);
+})->with([
+    'checking the disk' => [false, true],
+    'trusting the database' => [true, false],
+]);
+
 it('skips existing conversions stored on a separate disk when regenerating only missing', function () {
     // The original lives on `public`, the conversions on `secondMediaDisk` (disk !== conversions_disk).
     $media = $this->testModelWithConversion
