@@ -63,6 +63,13 @@ trait InteractsWithMedia
 
             $model->deleteAllMedia();
         });
+
+        // Media added before the model existed, with the options of the file adder that added it.
+        static::created(function (HasMedia $model) {
+            $model->processUnattachedMedia(function (Media $media, FileAdder $fileAdder) use ($model) {
+                $fileAdder->attachToCreatedModel($model, $media);
+            });
+        });
     }
 
     /**

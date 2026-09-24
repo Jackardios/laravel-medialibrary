@@ -608,20 +608,23 @@ class FileAdder
     protected function attachMedia(Media $media): void
     {
         if (! $this->subject->exists) {
+            // Added once the model has been created, see InteractsWithMedia::bootInteractsWithMedia().
             $this->subject->prepareToAttachMedia($media, $this);
-
-            $class = $this->subject::class;
-
-            $class::created(function ($model) {
-                $model->processUnattachedMedia(function (Media $media, self $fileAdder) use ($model) {
-                    $this->processMediaItem($model, $media, $fileAdder);
-                });
-            });
 
             return;
         }
 
         $this->processMediaItem($this->subject, $media, $this);
+    }
+
+    /**
+     * Add media that was prepared for a model before the model was created.
+     *
+     * @internal
+     */
+    public function attachToCreatedModel(HasMedia $model, Media $media): void
+    {
+        $this->processMediaItem($model, $media, $this);
     }
 
     protected function processMediaItem(HasMedia $model, Media $media, self $fileAdder): void
