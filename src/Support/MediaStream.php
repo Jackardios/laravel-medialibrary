@@ -88,7 +88,7 @@ class MediaStream implements Responsable
         $this->getZipStreamContents()->each(function (array $mediaInZip) use ($zip) {
             $stream = $mediaInZip['media']->stream();
 
-            $zip->addFileFromStream($mediaInZip['fileNameInZip'], $stream);
+            $zip->addFileFromStream($mediaInZip['fileNameInZip'], $stream, exactSize: $this->localFileSize($stream));
 
             if (is_resource($stream)) {
                 fclose($stream);
@@ -100,6 +100,24 @@ class MediaStream implements Responsable
         }
 
         return $zip;
+    }
+
+    /**
+     * The size of a local file. Knowing it, zipstream reads no more than the file instead of
+     * allocating 16 MiB for every read. The size other streams report may differ from what
+     * they yield (a decoded response body, for one), so those are read as before.
+     *
+     * @param  mixed  $stream
+     */
+    protected function localFileSize($stream): ?int
+    {
+        if (! is_resource($stream) || stream_get_meta_data($stream)['wrapper_type'] !== 'plainfile') {
+            return null;
+        }
+
+        $size = fstat($stream)['size'] ?? null;
+
+        return is_int($size) ? $size : null;
     }
 
     protected function getZipStreamContents(): Collection

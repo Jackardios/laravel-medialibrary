@@ -240,3 +240,26 @@ it('names the files the same way every time the zip is streamed', function () {
     expect(zipEntryNames($mediaStream))->toBe(['test.jpg', 'test (1).jpg', 'test (2).jpg'])
         ->and(zipEntryNames($mediaStream))->toBe(['test.jpg', 'test (1).jpg', 'test (2).jpg']);
 });
+
+it('reads no more of a local file than its size', function () {
+    $zipStream = MediaStream::create('my-media.zip')->addMedia(Media::all());
+    $output = fopen('php://memory', 'w+');
+    $zipStream->useZipOptions(function (array &$options) use ($output) {
+        $options['outputStream'] = $output;
+        $options['sendHttpHeaders'] = false;
+    });
+
+    memory_reset_peak_usage();
+    $memoryBefore = memory_get_usage();
+
+    $zipStream->getZipStream();
+
+    // Without the size, zipstream allocates 16 MiB for every read.
+    expect(memory_get_peak_usage() - $memoryBefore)->toBeLessThan(4 * 1024 * 1024);
+
+    rewind($output);
+    $zipPath = (new TemporaryDirectory)->create()->path('media.zip');
+    file_put_contents($zipPath, stream_get_contents($output));
+
+    $this->assertFileExistsInZip($zipPath, 'test (2).jpg');
+});
