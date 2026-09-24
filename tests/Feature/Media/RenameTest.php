@@ -1,6 +1,7 @@
 <?php
 
 use Spatie\MediaLibrary\MediaLibraryServiceProvider;
+use Spatie\MediaLibrary\Tests\TestSupport\TestFileNamer;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestCustomMediaWithCustomKeyName;
 
 it('will rename the file if it is changed on the media object', function () {
@@ -155,3 +156,22 @@ it('preserves the base64svg placeholder through a rename', function () {
     expect($media->responsive_images['thumb']['base64svg'])->toBe($placeholder);
     expect($media->responsive_images['thumb']['urls'][0])->toStartWith('test-new-name___');
 });
+
+it('names renamed responsive images the way the file namer does', function () {
+    config()->set('media-library.file_namer', TestFileNamer::class);
+
+    $media = $this->testModel->addMedia($this->getTestJpg())->withResponsiveImages()->toMediaCollection()->fresh();
+
+    $media->file_name = 'renamed.jpg';
+    $media->save();
+
+    $urls = $media->fresh()->responsive_images['media_library_original']['urls'];
+
+    expect($urls)->not->toBeEmpty();
+
+    foreach ($urls as $fileName) {
+        expect($fileName)->toStartWith('prefix_renamed_suffix___media_library_original_')
+            ->and($this->getMediaDirectory("{$media->id}/responsive-images/{$fileName}"))->toBeFile();
+    }
+});
+

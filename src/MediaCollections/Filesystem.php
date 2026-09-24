@@ -12,6 +12,7 @@ use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskCannotBeAccessed;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Support\File;
+use Spatie\MediaLibrary\Support\FileNamer\FileNamer;
 use Spatie\MediaLibrary\Support\FileRemover\FileRemoverFactory;
 use Spatie\MediaLibrary\Support\PathGenerator\PathGeneratorFactory;
 use Spatie\MediaLibrary\Support\RemoteFile;
@@ -402,8 +403,12 @@ class Filesystem
             return;
         }
 
-        $oldBase = pathinfo($media->getOriginal('file_name'), PATHINFO_FILENAME);
-        $newBase = pathinfo($media->file_name, PATHINFO_FILENAME);
+        /** @var FileNamer $fileNamer */
+        $fileNamer = app(config('media-library.file_namer'));
+
+        // Name the files the way ResponsiveImageGenerator would for the new file name.
+        $oldBase = $fileNamer->responsiveFileName($media->getOriginal('file_name'));
+        $newBase = $fileNamer->responsiveFileName($media->file_name);
 
         if ($oldBase === $newBase) {
             return;
