@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Str;
 use Spatie\MediaLibrary\Conversions\FileManipulator;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -176,4 +177,20 @@ it('uses the original disk for conversions of media without a conversions disk',
     $media->delete();
 
     expect($this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg"))->not->toBeFile();
+});
+
+it('builds the srcset of the original on the conversions disk', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())
+        ->storingConversionsOnDisk('secondMediaDisk')
+        ->withResponsiveImages()
+        ->toMediaCollection();
+
+    $urls = $media->fresh()->getResponsiveImageUrls();
+
+    expect($urls)->not->toBeEmpty();
+
+    foreach ($urls as $url) {
+        expect($url)->toStartWith("/media2/{$media->id}/responsive-images/")
+            ->and($this->getTempDirectory('media2/'.Str::after($url, '/media2/')))->toBeFile();
+    }
 });

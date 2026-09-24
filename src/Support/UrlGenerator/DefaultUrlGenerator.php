@@ -3,6 +3,7 @@
 namespace Spatie\MediaLibrary\Support\UrlGenerator;
 
 use DateTimeInterface;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class DefaultUrlGenerator extends BaseUrlGenerator
@@ -33,7 +34,8 @@ class DefaultUrlGenerator extends BaseUrlGenerator
     {
         $path = $this->pathGenerator->getPathForResponsiveImages($this->media);
 
-        return Str::finish($this->getDisk()->url($path), '/');
+        // Responsive images, including those of the original, are stored on the conversions disk.
+        return Str::finish(Storage::disk($this->media->conversions_disk)->url($path), '/');
     }
 
     protected function getRootOfDisk(): string
