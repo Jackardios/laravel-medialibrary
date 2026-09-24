@@ -96,7 +96,7 @@ class DefaultFileRemover implements FileRemover
                     $allFilePaths = $this->filesystem->disk($disk)->allFiles($directory);
 
                     // Every registered responsive image, including those of conversions the model no longer registers.
-                    $responsiveImagesFilePaths = collect(array_keys($media->responsive_images))
+                    $responsiveImagesFilePaths = collect(array_keys($media->responsive_images ?? []))
                         ->flatMap(static fn (string $conversion) => $media->responsiveImages($conversion)->getFilenames())
                         ->map(static fn (string $imagePath) => $mediaRoot.$imagePath)
                         ->toArray();

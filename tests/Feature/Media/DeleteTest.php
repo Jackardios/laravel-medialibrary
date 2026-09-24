@@ -1,9 +1,11 @@
 <?php
 
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Spatie\MediaLibrary\Support\FileRemover\DefaultFileRemover;
 use Spatie\MediaLibrary\Support\FileRemover\FileBaseFileRemover;
 use Spatie\MediaLibrary\Support\PathGenerator\DefaultPathGenerator;
 use Spatie\MediaLibrary\Tests\Support\PathGenerator\CustomDirectoryStructurePathGenerator;
@@ -296,3 +298,15 @@ it('will remove the file when model uses softdelete with force', function () {
 
     expect(File::isDirectory($this->getMediaDirectory($media->id)))->toBeFalse();
 });
+
+it('removes the files of a media stored without responsive images', function (string $fileRemover) {
+    config(['media-library.file_remover_class' => $fileRemover]);
+
+    $media = $this->testModelWithConversion->addMedia($this->getTestJpg())->toMediaCollection('images');
+    DB::table('media')->where('id', $media->id)->update(['responsive_images' => 'null']);
+
+    $media->fresh()->delete();
+
+    expect($media->getPath())->not->toBeFile()
+        ->and($media->getPath('thumb'))->not->toBeFile();
+})->with([DefaultFileRemover::class, FileBaseFileRemover::class]);

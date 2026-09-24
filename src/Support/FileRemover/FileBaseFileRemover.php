@@ -24,7 +24,7 @@ class FileBaseFileRemover extends DefaultFileRemover
 
         // Includes the responsive images of the original (`media_library_original`) and of
         // conversions the model no longer registers.
-        collect(array_keys($media->responsive_images))->each(function (string $conversionName) use ($media) {
+        collect(array_keys($media->responsive_images ?? []))->each(function (string $conversionName) use ($media) {
             $this->mediaFileSystem->removeResponsiveImages($media, $conversionName);
         });
     }
