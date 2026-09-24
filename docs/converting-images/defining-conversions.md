@@ -186,8 +186,6 @@ public function registerMediaConversions(?Media $media = null): void
 
 Deferred conversions run inline in the same PHP process after the response is flushed, so they keep the worker busy until they finish. For slow conversions, or models with many conversions, prefer `queued()` so the work runs on a queue worker instead.
 
-Deferred conversions require Laravel 11.23 or higher (the version that introduced the `defer()` helper). On older versions, use `queued()` or `nonQueued()`.
-
 ## Using model properties in a conversion
 
 When registering conversions inside the `registerMediaConversions` function you won't have access to your model properties by default. If you want to use a property of your model as input for defining a conversion you must set `registerMediaConversionsUsingModelInstance` to `
