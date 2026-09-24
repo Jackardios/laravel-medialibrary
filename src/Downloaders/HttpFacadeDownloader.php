@@ -55,9 +55,21 @@ class HttpFacadeDownloader implements Downloader
             $uri = $request->getUri();
             $address = $guard->addressFor((string) $uri);
 
-            unset($options['curl'][CURLOPT_RESOLVE]);
+            // Without ext-curl Guzzle sends through PHP streams, which it cannot pin to an address.
+            if (defined('CURLOPT_RESOLVE')) {
+                unset($options['curl'][CURLOPT_RESOLVE]);
+            }
 
-            if ($address !== null && filter_var(trim($uri->getHost(), '[]'), FILTER_VALIDATE_IP) === false) {
+            if ($address !== null) {
+                // A proxy (Guzzle and curl read HTTP_PROXY and the like) would resolve the host again.
+                unset($options['proxy']);
+
+                if (defined('CURLOPT_PROXY')) {
+                    $options['curl'][CURLOPT_PROXY] = '';
+                }
+            }
+
+            if ($address !== null && defined('CURLOPT_RESOLVE') && filter_var(trim($uri->getHost(), '[]'), FILTER_VALIDATE_IP) === false) {
                 $port = $uri->getPort() ?? ($uri->getScheme() === 'https' ? 443 : 80);
                 $pinnedAddress = str_contains($address, ':') ? "[{$address}]" : $address;
 

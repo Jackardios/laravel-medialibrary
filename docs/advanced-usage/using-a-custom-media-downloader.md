@@ -17,6 +17,8 @@ To download from an internal host, list it in the config. Wildcards are allowed:
 'media_downloader_trusted_hosts' => ['files.internal.example', '*.cdn.internal.example'],
 ```
 
+A proxy would look the host up again, so the `HttpFacadeDownloader` downloads a checked URL without one, ignoring `HTTP_PROXY` and the like. URLs of trusted hosts, and every URL when the check is disabled, go through the proxy as usual.
+
 Setting `media_downloader_blocks_private_networks` to `false` (or `MEDIA_DOWNLOADER_BLOCKS_PRIVATE_NETWORKS=false`) disables the check. Only do that when every URL comes from a trusted source.
 
 Without the curl extension the `HttpFacadeDownloader` still checks every URL, but it cannot make the connection to the checked address.
@@ -56,6 +58,7 @@ class CustomDownloader implements Downloader {
             $port = parse_url($url, PHP_URL_PORT) ?? (parse_url($url, PHP_URL_SCHEME) === 'https' ? 443 : 80);
             $pinned = str_contains($address, ':') ? "[{$address}]" : $address; // IPv6
             $options[CURLOPT_RESOLVE] = ["{$host}:{$port}:{$pinned}"];
+            $options[CURLOPT_PROXY] = ''; // a proxy would resolve the host again
         }
 
         $headers = [
