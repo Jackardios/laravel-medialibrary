@@ -97,6 +97,12 @@ abstract class TestCase extends Orchestra
     {
         $this->initializeDirectory($this->getTempDirectory());
 
+        // Reported exceptions would pile up in testbench's log, which every worker shares.
+        config()->set('logging.default', 'null');
+
+        // Every `--parallel` worker compiles views in its own directory, see renderView().
+        config()->set('view.compiled', $this->getTempDirectory('views'));
+
         // Laravel only reports deprecations in tests when LOG_DEPRECATIONS_WHILE_TESTING is set as well.
         if ($deprecationsLog = getenv('MEDIA_LIBRARY_DEPRECATIONS_LOG')) {
             config()->set('logging.channels.deprecations', ['driver' => 'single', 'path' => $deprecationsLog]);
