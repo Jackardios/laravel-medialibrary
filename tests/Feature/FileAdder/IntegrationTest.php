@@ -1,11 +1,13 @@
 <?php
 
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Image\Enums\BorderType;
 use Spatie\MediaLibrary\Conversions\ImageGenerators\ImageGeneratorFactory;
 use Spatie\MediaLibrary\Downloaders\HttpFacadeDownloader;
+use Spatie\MediaLibrary\MediaCollections\Events\MediaHasBeenAddedEvent;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskCannotBeAccessed;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
@@ -311,6 +313,46 @@ it('can add a file from a separate disk to the media library', function () {
 
     expect($this->getMediaDirectory("{$media->id}/test.jpg"))->toBeFile();
 });
+
+it('performs the conversions of a file added from a disk and announces it', function () {
+    Event::fake([MediaHasBeenAddedEvent::class]);
+
+    Storage::disk('secondMediaDisk')->put('tmp/test.jpg', file_get_contents($this->getTestJpg()));
+
+    $media = $this->testModelWithConversion
+        ->addMediaFromDisk('tmp/test.jpg', 'secondMediaDisk')
+        ->toMediaCollection();
+
+    expect($this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg"))->toBeFile();
+
+    Event::assertDispatched(MediaHasBeenAddedEvent::class, fn (MediaHasBeenAddedEvent $event) => $event->media->is($media));
+});
+
+it('stores the properties of a file added from a disk', function () {
+    Storage::disk('secondMediaDisk')->put('tmp/test.jpg', file_get_contents($this->getTestJpg()));
+
+    $media = $this->testModel
+        ->addMediaFromDisk('tmp/test.jpg', 'secondMediaDisk')
+        ->withProperties(['name' => 'custom name'])
+        ->toMediaCollection();
+
+    expect($media->fresh()->name)->toBe('custom name');
+});
+
+it('will throw an exception when adding a file from a disk to a non existing disk', function (string $diskName, string $conversionsDiskName) {
+    Storage::disk('secondMediaDisk')->put('tmp/test.jpg', file_get_contents($this->getTestJpg()));
+
+    expect(fn () => $this->testModel
+        ->addMediaFromDisk('tmp/test.jpg', 'secondMediaDisk')
+        ->storingConversionsOnDisk($conversionsDiskName)
+        ->toMediaCollection('default', $diskName)
+    )->toThrow(DiskDoesNotExist::class);
+
+    expect(Media::count())->toBe(0);
+})->with([
+    'originals disk' => ['non-existing-disk', 'public'],
+    'conversions disk' => ['public', 'non-existing-disk'],
+]);
 
 it('can natively copy a remote file from the same disk to the media library', function () {
     Storage::disk('public')->put('tmp/test.jpg', file_get_contents($this->getTestJpg()));
