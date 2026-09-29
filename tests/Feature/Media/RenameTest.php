@@ -263,6 +263,16 @@ it('renames the file into a directory of its own', function () {
     expect($this->getMediaDirectory("{$media->id}/other/renamed.jpg"))->toBeFile();
 });
 
+it('removes a file renamed into a directory of its own with its media', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->toMediaCollection();
+
+    $media->file_name = 'other/renamed.jpg';
+    $media->save();
+    $media->delete();
+
+    expect($this->getMediaDirectory((string) $media->id))->not->toBeDirectory();
+});
+
 class TestModelWithConversionsOfTwoCollections extends TestModel
 {
     public function registerMediaConversions(?Media $media = null): void

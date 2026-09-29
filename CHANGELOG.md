@@ -43,6 +43,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - A separate conversions disk is used everywhere: srcsets of the original, `--only-missing`, renames, moves on update (`moves_media_on_update`), mail attachments and removal. Media without a `conversions_disk` falls back to its own disk.
 - Responsive images are replaced only once the new set has been generated, so a failure keeps the previous set; the previous files are removed afterwards. Removing or renaming them no longer touches the images of conversions whose name starts with the same text, and deleting one responsive image keeps the others of its conversion.
 - Renamed responsive images are named through the file namer and are removed when the media is deleted.
+- Deleting a media removes its original by its path: also one renamed into a directory of its own (`other/file.jpg`), and no longer files of the same name elsewhere in its directory.
 - `addMediaFromDisk` on the same disk keeps the source file when the copy fails, and sanitizes and names the file once.
 - The collection size limit (`singleFile()`, `onlyKeepLatest()`) removes older media once a transaction around the addition is committed, so a rollback keeps them and their files. A conversion that fails while the media is added still enforces the limit. A media whose file could not be written is not kept.
 - `Media::copy()` and `move()` to a model that is saved afterwards add the media once the model is created, and remove their temporary copy.

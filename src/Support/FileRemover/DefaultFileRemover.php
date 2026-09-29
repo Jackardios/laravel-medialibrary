@@ -36,10 +36,7 @@ class DefaultFileRemover implements FileRemover
             ->each(function (string $directory) use ($media, $disk) {
                 try {
                     $allFilePaths = $this->filesystem->disk($disk)->allFiles($directory);
-                    $imagePaths = array_filter(
-                        $allFilePaths,
-                        static fn (string $path) => Str::afterLast($path, '/') === $media->file_name
-                    );
+                    $imagePaths = array_intersect($allFilePaths, [$media->getPathRelativeToRoot()]);
                     foreach ($imagePaths as $imagePath) {
                         $this->filesystem->disk($disk)->delete($imagePath);
                     }
