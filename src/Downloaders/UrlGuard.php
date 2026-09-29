@@ -17,7 +17,7 @@ class UrlGuard
      * The address to connect to for the url, or null when its host is not checked (a trusted
      * host, or the protection is disabled) and may be resolved as usual.
      *
-     * @throws InvalidUrl when the url is not an http(s) url, or its host is not ascii or resolves to a private or reserved address
+     * @throws InvalidUrl when the url is not an http(s) url, or its host is not a plain domain name or ip address, or resolves to a private or reserved address
      * @throws UnreachableUrl when its host does not resolve
      */
     public function addressFor(string $url): ?string
@@ -33,10 +33,10 @@ class UrlGuard
             return null;
         }
 
-        // Clients look up the ascii (punycode) form of an international domain name, which may
-        // resolve elsewhere than the name checked here.
-        if (preg_match('/[^\x21-\x7e]/', $host)) {
-            throw InvalidUrl::hostIsNotAscii($url);
+        // Clients decode a percent-encoded host and look up the ascii (punycode) form of an
+        // international domain name, either of which may resolve elsewhere than the name checked here.
+        if (! filter_var($host, FILTER_VALIDATE_IP) && ! preg_match('/^[a-z0-9._-]+$/', $host)) {
+            throw InvalidUrl::hostIsNotPlain($url);
         }
 
         $addresses = $this->resolve($host);

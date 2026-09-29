@@ -7,7 +7,7 @@ By default, when using the `addMediaFromUrl` method, the package internally uses
 
 ## Protection against private networks
 
-To protect against server side request forgery (SSRF), both built-in downloaders refuse a URL whose host resolves to a private or reserved address: loopback (`localhost`, `127.0.0.1`, `::1`), private networks (`10.0.0.0/8`, `192.168.0.0/16`, ...), link-local addresses such as the cloud metadata endpoint `169.254.169.254`, and other reserved ranges. They check every redirect the same way, connect to the address they checked so a second DNS lookup cannot point elsewhere, and stop the download as soon as it exceeds `max_file_size`. A host with non-ascii characters has to be written in its punycode form (`xn--...`). A refused URL throws `Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidUrl`.
+To protect against server side request forgery (SSRF), both built-in downloaders refuse a URL whose host resolves to a private or reserved address: loopback (`localhost`, `127.0.0.1`, `::1`), private networks (`10.0.0.0/8`, `192.168.0.0/16`, ...), link-local addresses such as the cloud metadata endpoint `169.254.169.254`, and other reserved ranges. They check every redirect the same way, connect to the address they checked so a second DNS lookup cannot point elsewhere, and stop the download as soon as it exceeds `max_file_size`. A host has to be a plain domain name or IP address: write an international domain name in its punycode form (`xn--...`), without percent-encoding. A refused URL throws `Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidUrl`.
 
 To download from an internal host, list it in the config. Wildcards are allowed:
 
