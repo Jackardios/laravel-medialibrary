@@ -2,7 +2,6 @@
 
 namespace Spatie\MediaLibrary\Tests;
 
-use CreateTemporaryUploadsTable;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -11,7 +10,6 @@ use Illuminate\Support\Facades\File;
 use Orchestra\Testbench\TestCase as Orchestra;
 use Schema;
 use Spatie\MediaLibrary\MediaLibraryServiceProvider;
-use Spatie\MediaLibrary\Support\MediaLibraryPro;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithConversion;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModelWithConversionDeferred;
@@ -150,11 +148,6 @@ abstract class TestCase extends Orchestra
         });
 
         TestModel::create(['name' => 'test']);
-
-        if (MediaLibraryPro::isInstalled()) {
-            include_once __DIR__.'/../vendor/spatie/laravel-medialibrary-pro/database/migrations/create_temporary_uploads_table.stub';
-            (new CreateTemporaryUploadsTable)->up();
-        }
 
         $mediaTableMigration = require __DIR__.'/../database/migrations/create_media_table.php.stub';
 

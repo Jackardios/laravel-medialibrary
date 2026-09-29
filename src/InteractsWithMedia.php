@@ -25,8 +25,6 @@ use Spatie\MediaLibrary\MediaCollections\FileAdderFactory;
 use Spatie\MediaLibrary\MediaCollections\MediaCollection;
 use Spatie\MediaLibrary\MediaCollections\MediaRepository;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
-use Spatie\MediaLibrary\Support\MediaLibraryPro;
-use Spatie\MediaLibraryPro\PendingMediaLibraryRequestHandler;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Mime\MimeTypes;
 use Throwable;
@@ -107,28 +105,6 @@ trait InteractsWithMedia
     public function addMediaFromDisk(string $key, ?string $disk = null): FileAdder
     {
         return app(FileAdderFactory::class)->createFromDisk($this, $key, $disk ?: config('filesystems.default'));
-    }
-
-    public function addFromMediaLibraryRequest(?array $mediaLibraryRequestItems): PendingMediaLibraryRequestHandler
-    {
-        MediaLibraryPro::ensureInstalled();
-
-        return new PendingMediaLibraryRequestHandler(
-            $mediaLibraryRequestItems ?? [],
-            $this,
-            $preserveExisting = true
-        );
-    }
-
-    public function syncFromMediaLibraryRequest(?array $mediaLibraryRequestItems): PendingMediaLibraryRequestHandler
-    {
-        MediaLibraryPro::ensureInstalled();
-
-        return new PendingMediaLibraryRequestHandler(
-            $mediaLibraryRequestItems ?? [],
-            $this,
-            $preserveExisting = false
-        );
     }
 
     /**

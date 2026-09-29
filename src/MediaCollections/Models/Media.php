@@ -7,11 +7,8 @@ use DateTimeInterface;
 use Illuminate\Contracts\Mail\Attachable;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\Support\Responsable;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Mail\Attachment;
 use Illuminate\Support\Arr;
@@ -35,11 +32,9 @@ use Spatie\MediaLibrary\MediaCollections\Models\Concerns\IsSorted;
 use Spatie\MediaLibrary\ResponsiveImages\RegisteredResponsiveImages;
 use Spatie\MediaLibrary\Support\ContentDisposition;
 use Spatie\MediaLibrary\Support\File;
-use Spatie\MediaLibrary\Support\MediaLibraryPro;
 use Spatie\MediaLibrary\Support\TemporaryDirectory;
 use Spatie\MediaLibrary\Support\UrlGenerator\UrlGenerator;
 use Spatie\MediaLibrary\Support\UrlGenerator\UrlGeneratorFactory;
-use Spatie\MediaLibraryPro\Models\TemporaryUpload;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Mime\MimeTypes;
 use Throwable;
@@ -634,33 +629,6 @@ class Media extends Model implements Attachable, Htmlable, Responsable
     public function __invoke(...$arguments): HtmlableMedia
     {
         return $this->img(...$arguments);
-    }
-
-    public function temporaryUpload(): BelongsTo
-    {
-        MediaLibraryPro::ensureInstalled();
-
-        /** @var class-string<TemporaryUpload> $temporaryUploadModelClass */
-        $temporaryUploadModelClass = config('media-library.temporary_upload_model');
-
-        return $this->belongsTo($temporaryUploadModelClass);
-    }
-
-    public static function findWithTemporaryUploadInCurrentSession(array $uuids): EloquentCollection
-    {
-        MediaLibraryPro::ensureInstalled();
-
-        /** @var class-string<TemporaryUpload> $temporaryUploadModelClass */
-        $temporaryUploadModelClass = config('media-library.temporary_upload_model');
-
-        return static::query()
-            ->whereIn('uuid', $uuids)
-            ->whereHasMorph(
-                'model',
-                [$temporaryUploadModelClass],
-                fn (Builder $builder) => $builder->where('session_id', session()->getId())
-            )
-            ->get();
     }
 
     public function mailAttachment(string $conversion = ''): Attachment

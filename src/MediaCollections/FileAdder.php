@@ -20,7 +20,6 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\ResponsiveImages\Jobs\GenerateResponsiveImagesJob;
 use Spatie\MediaLibrary\Support\File;
 use Spatie\MediaLibrary\Support\RemoteFile;
-use Spatie\MediaLibraryPro\Models\TemporaryUpload;
 use Symfony\Component\HttpFoundation\File\File as SymfonyFile;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Throwable;
@@ -123,10 +122,6 @@ class FileAdder
             $this->setFileName(pathinfo($file->getFilename(), PATHINFO_BASENAME));
             $this->mediaName = pathinfo($file->getFilename(), PATHINFO_FILENAME);
 
-            return $this;
-        }
-
-        if ($this->isInstanceOfTemporaryUploadModel($file)) {
             return $this;
         }
 
@@ -385,10 +380,6 @@ class FileAdder
             }
 
             $this->nameFile();
-
-            if ($this->isInstanceOfTemporaryUploadModel($this->file)) {
-                return $this->toMediaCollectionFromTemporaryUpload($collectionName, $diskName, $this->fileName);
-            }
 
             if (! is_file($this->pathToFile)) {
                 throw FileDoesNotExist::create($this->pathToFile);
@@ -828,43 +819,10 @@ class FileAdder
         }
     }
 
-    protected function toMediaCollectionFromTemporaryUpload(string $collectionName, string $diskName, string $fileName = ''): Media
-    {
-        /** @var TemporaryUpload $temporaryUpload */
-        $temporaryUpload = $this->file;
-
-        /** @var Media */
-        $media = $temporaryUpload->getFirstMedia();
-
-        $media->name = $this->mediaName;
-        $media->custom_properties = $this->customProperties;
-
-        if (! is_null($this->order)) {
-            $media->order_column = $this->order;
-        }
-
-        $media->setCustomHeaders($this->customHeaders);
-
-        $media->save();
-
-        return $temporaryUpload->moveMedia($this->subject, $collectionName, $diskName, $fileName);
-    }
-
     protected function appendExtension(string $file, ?string $extension): string
     {
         return $extension
             ? $file.'.'.$extension
             : $file;
-    }
-
-    protected function isInstanceOfTemporaryUploadModel(mixed $file): bool
-    {
-        $model = config('media-library.temporary_upload_model');
-
-        if ($model === null) {
-            return false;
-        }
-
-        return $file instanceof $model;
     }
 }

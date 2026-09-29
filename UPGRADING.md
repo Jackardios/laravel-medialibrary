@@ -63,6 +63,7 @@ Because there are many breaking changes an upgrade is not that easy. There are m
 ### Removed
 
 - `ResponsiveImageGenerator::cleanResponsiveImages()` (protected). Responsive images are replaced once the new set has been generated.
+- The Media Library Pro integration, which cannot be installed with the fork: `addFromMediaLibraryRequest()`, `syncFromMediaLibraryRequest()`, `Media::temporaryUpload()`, `Media::findWithTemporaryUploadInCurrentSession()`, `FileAdderFactory::createForPendingMedia()`, adding a `TemporaryUpload`, `Support\MediaLibraryPro`, `FunctionalityNotAvailable::mediaLibraryProRequired()`, `MediaCollections\Contracts\MediaLibraryRequest`, `Support\Factories\TemporaryUploadFactory`, and the config keys `temporary_upload_model`, `enable_temporary_uploads_session_affinity`, `generate_thumbnails_for_temporary_uploads` and `enable_vapor_uploads`. Remove these keys from a published config.
 
 ## From spatie/laravel-medialibrary 11.x to jackardios/laravel-medialibrary 2.0
 
@@ -77,6 +78,7 @@ Because there are many breaking changes an upgrade is not that easy. There are m
   - `Filesystem::removeFile(Media $media, string $path, ?string $disk = null)`.
   - `ResponsiveImageGenerator::generateResponsiveImages(Media $media, ?string $baseImage = null)`.
   - `ResponsiveImageGenerator::cleanResponsiveImages()` (protected) is removed.
+- The Media Library Pro integration is removed (see Removed above).
 
 ## Upgrading spatie/laravel-medialibrary
 

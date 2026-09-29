@@ -4,18 +4,16 @@ use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
- * Methods that are internal to the package or that require Media Library Pro,
- * and therefore are intentionally absent from the public contract.
+ * Methods that are internal to the package, and therefore are intentionally absent
+ * from the public contract.
  */
 function methodsAbsentFromContractOnPurpose(): array
 {
     return [
         '__sleep',
-        'addFromMediaLibraryRequest',
         'bootInteractsWithMedia',
         'getMediaRepository',
         'processUnattachedMedia',
-        'syncFromMediaLibraryRequest',
     ];
 }
 

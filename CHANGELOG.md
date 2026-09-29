@@ -76,6 +76,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 
 - The `--verify-existence` option of `media-library:regenerate` (now the default behaviour).
 - `ResponsiveImageGenerator::cleanResponsiveImages()` (protected).
+- The Media Library Pro integration, which cannot be installed with the fork: `addFromMediaLibraryRequest()`, `syncFromMediaLibraryRequest()`, `Media::temporaryUpload()`, `Media::findWithTemporaryUploadInCurrentSession()`, `FileAdderFactory::createForPendingMedia()`, adding a `TemporaryUpload`, `Support\MediaLibraryPro`, `FunctionalityNotAvailable::mediaLibraryProRequired()`, `MediaCollections\Contracts\MediaLibraryRequest`, `Support\Factories\TemporaryUploadFactory`, and the config keys `temporary_upload_model`, `enable_temporary_uploads_session_affinity`, `generate_thumbnails_for_temporary_uploads` and `enable_vapor_uploads`.
 
 ## 1.0.0
 
