@@ -329,7 +329,7 @@ return [
          * images. By default we optimize for filesize and create variations that each are 30%
          * smaller than the previous one. More info in the documentation.
          *
-         * https://docs.spatie.be/laravel-medialibrary/v9/advanced-usage/generating-responsive-images
+         * https://github.com/jackardios/laravel-medialibrary/blob/main/docs/responsive-images/using-your-own-width-calculator.md
          */
         'width_calculator' => FileSizeOptimizedWidthCalculator::class,
 
