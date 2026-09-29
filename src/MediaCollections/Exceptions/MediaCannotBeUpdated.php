@@ -24,4 +24,9 @@ class MediaCannotBeUpdated extends Exception
     {
         return new static("The file of media id {$media->getKey()} cannot be moved from `{$from}` to `{$to}`");
     }
+
+    public static function cannotBeMovedToUnsavedModel(Media $media): self
+    {
+        return new static("Media id {$media->getKey()} cannot be moved to a model that is not saved yet. Save the model first.");
+    }
 }

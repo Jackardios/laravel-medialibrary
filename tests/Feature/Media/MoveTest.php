@@ -1,5 +1,6 @@
 <?php
 
+use Spatie\MediaLibrary\MediaCollections\Exceptions\MediaCannotBeUpdated;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
 
 it('can move media from one model to another', function () {
@@ -56,17 +57,17 @@ it('can move media from one model to another on a specific disk', function () {
     expect('custom-property-value')->toEqual($movedMedia->getCustomProperty('custom-property-name'));
 });
 
-it('can move media to a model that is saved afterwards', function () {
+it('refuses to move media to a model that is not saved yet', function () {
     $media = TestModel::create(['name' => 'test'])->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection();
 
     $anotherModel = new TestModel(['name' => 'another-test']);
-    $media->move($anotherModel, 'images');
+
+    // The media would be lost if the model is never saved.
+    expect(fn () => $media->move($anotherModel, 'images'))->toThrow(MediaCannotBeUpdated::class);
+
     $anotherModel->save();
 
-    $movedMedia = $anotherModel->getFirstMedia('images');
-
-    expect($movedMedia->getPath())->toBeFile()
-        ->and(file_get_contents($movedMedia->getPath()))->toBe(file_get_contents($this->getTestJpg()))
-        ->and($movedMedia->file_name)->toBe('test.jpg')
-        ->and($media->getPath())->not->toBeFile();
+    expect($media->fresh())->not->toBeNull()
+        ->and($media->getPath())->toBeFile()
+        ->and($anotherModel->getMedia('images'))->toHaveCount(0);
 });

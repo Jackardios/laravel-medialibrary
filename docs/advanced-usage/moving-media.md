@@ -13,6 +13,8 @@ $movedMediaItem = $mediaItem->move($anotherModel, 'new-collection', 's3');
 
 Any conversions defined on `$anotherModel` will be performed. The `name` and the `custom_properties` will be transferred as well.
 
+`$anotherModel` has to be saved: moving media to a model that is not saved yet throws `MediaCannotBeUpdated`, because the media would be lost if the model is never saved. Media copied to an unsaved model is added once the model is created.
+
 ## Copying media
 
 You can also copy media from one model with the `copy` method.

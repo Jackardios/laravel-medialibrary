@@ -24,6 +24,7 @@ use Spatie\MediaLibrary\Conversions\ImageGenerators\ImageGeneratorFactory;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidConversion;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\MediaCannotBeUpdated;
 use Spatie\MediaLibrary\MediaCollections\FileAdder;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
 use Spatie\MediaLibrary\MediaCollections\HtmlableMedia;
@@ -542,6 +543,11 @@ class Media extends Model implements Attachable, Htmlable, Responsable
     /** @param  string  $collectionName */
     public function move(HasMedia $model, $collectionName = 'default', string $diskName = '', string $fileName = ''): self
     {
+        // The media would be lost if the model is never saved.
+        if (! $model->exists) {
+            throw MediaCannotBeUpdated::cannotBeMovedToUnsavedModel($this);
+        }
+
         $newMedia = $this->copy($model, $collectionName, $diskName, $fileName);
 
         $this->forceDelete();

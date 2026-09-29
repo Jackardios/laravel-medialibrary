@@ -37,6 +37,7 @@ Because there are many breaking changes an upgrade is not that easy. There are m
 - `toResponse()` / `toInlineResponse()` of a missing file throw `FileDoesNotExist` before sending; `Media::copy()` and `copyFromMediaLibrary()` throw `FileDoesNotExist` when the original is missing.
 - A conversion is sent and attached under its own file name and mime type.
 - Renaming a media throws `MediaCannotBeUpdated` when its file cannot be moved.
+- `Media::move()` to a model that is not saved yet throws `MediaCannotBeUpdated`. Save the model first.
 - The values of an image tag's extra attributes are escaped. Pass plain values, not HTML.
 - Urls of disks with a configured `url` percent-encode the file name. Urls of media without `updated_at` have no `?v=` version.
 - `ResponsiveImagesGeneratedEvent` and `ConversionHasBeenCompletedEvent` fire once the result is saved.

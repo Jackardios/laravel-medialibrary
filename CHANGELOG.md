@@ -46,7 +46,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - Deleting a media removes its original by its path: also one renamed into a directory of its own (`other/file.jpg`), and no longer files of the same name elsewhere in its directory.
 - `addMediaFromDisk` on the same disk keeps the source file when the copy fails, and sanitizes and names the file once.
 - The collection size limit (`singleFile()`, `onlyKeepLatest()`) removes older media once a transaction around the addition is committed, so a rollback keeps them and their files. A conversion that fails while the media is added still enforces the limit. A media whose file could not be written is not kept.
-- `Media::copy()` and `move()` to a model that is saved afterwards add the media once the model is created, and remove their temporary copy.
+- `Media::copy()` to a model that is saved afterwards adds the media once the model is created, and removes its temporary copy. `Media::move()` to a model that is not saved yet throws `MediaCannotBeUpdated` instead of deleting the media before it is added.
 - Media conversions stored on the media with a single value (`['thumb' => ['format' => 'png']]`) or a named one name the file after that format; a quality stored that way applies to its responsive images.
 - `keepOriginalImageFormat()` keeps the format of avif images.
 - A conversion file that cannot be renamed along with its media is marked as not generated.
