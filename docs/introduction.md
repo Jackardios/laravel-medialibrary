@@ -3,7 +3,7 @@ title: Introduction
 weight: 1
 ---
 
-This package can associate all sorts of files with Eloquent models. It provides a simple, fluent API to work with. The [Pro version of the package](https://medialibrary.pro) offers Blade, Vue and React components to handle uploads to the media library and to administer the content of a medialibrary collection.
+This package can associate all sorts of files with Eloquent models. It provides a simple, fluent API to work with.
 
 Here are some quick code examples:
 
@@ -38,13 +38,3 @@ $yourModel->getMedia('images')->first()->getUrl('thumb');
 We've recorded [a video course](https://spatie.be/courses/discovering-laravel-media-library) on how to use this package. It's the best way to get started using media library
 
 [![video course](/docs/laravel-medialibrary/v11/images/video-course.jpg)](https://spatie.be/courses/discovering-laravel-media-library/introducing-laravel-media-library)
-
-## We have badges!
-
-<section class="article_badges">
-    <a href="https://github.com/spatie/laravel-medialibrary/releases"><img src="https://img.shields.io/github/release/spatie/laravel-medialibrary.svg?style=flat-square" alt="Latest Version"></a>
-    <a href="https://github.com/spatie/laravel-medialibrary/blob/master/LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square" alt="Software License"></a>
-    <a href="https://travis-ci.org/spatie/laravel-medialibrary"><img src="https://img.shields.io/travis/spatie/laravel-medialibrary/master.svg?style=flat-square" alt="Build Status"></a>
-    <a href="https://scrutinizer-ci.com/g/spatie/laravel-medialibrary"><img src="https://img.shields.io/scrutinizer/g/spatie/laravel-medialibrary.svg?style=flat-square" alt="Quality Score"></a>
-    <a href="https://packagist.org/packages/spatie/laravel-medialibrary"><img src="https://img.shields.io/packagist/dt/spatie/laravel-medialibrary.svg?style=flat-square" alt="Total Downloads"></a>
-</section>
