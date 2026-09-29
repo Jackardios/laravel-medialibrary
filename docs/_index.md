@@ -1,6 +1,6 @@
-        ---
-title: v11
+---
+title: v2
 slogan: Associate files with Eloquent models.
-githubUrl: https://github.com/spatie/laravel-medialibrary
+githubUrl: https://github.com/jackardios/laravel-medialibrary
 branch: main
 ---
