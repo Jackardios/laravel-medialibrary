@@ -110,7 +110,7 @@ it('registers the conversions once while building urls and a srcset and listing 
         ->and(TestModelWithCountedConversions::$registrations)->toBe(1);
 });
 
-it('keeps the collections of the media used last only', function (int $otherMedia, bool $kept) {
+it('forgets the collection of the media memoized first once 16 others are memoized', function (int $otherMedia, bool $kept) {
     $media = $this->testModelWithConversion->addMedia($this->getTestJpg())->toMediaCollection();
 
     $conversions = $media->getConversionCollection();

@@ -620,8 +620,7 @@ it('cleans deprecated conversion files when conversions are stored on a separate
 
     $this->artisan('media-library:clean');
 
-    // Regression: the cleanup listed/deleted conversion files on `disk` instead of
-    // `conversions_disk`, so on a separate disk it found nothing and left them behind.
+    // The deprecated conversion is removed from the conversions disk.
     $this->assertFileDoesNotExist($deprecatedConversion);
     expect($validConversion)->toBeFile();
 });
@@ -650,8 +649,7 @@ it('cleans deprecated responsive images when conversions are stored on a separat
 
     $media->refresh();
 
-    // Regression: ResponsiveImage::delete -> Filesystem::removeFile used `disk`, not
-    // `conversions_disk`, so deprecated responsive images on a separate disk were left behind.
+    // The deprecated responsive images are removed from the conversions disk.
     expect($media->responsive_images)->toEqual($originalResponsiveImagesContent);
     $this->assertFileDoesNotExist($deprecatedResponsiveImagesPath);
 });

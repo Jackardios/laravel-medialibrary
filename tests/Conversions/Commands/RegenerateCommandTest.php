@@ -470,8 +470,6 @@ it('skips existing conversions stored on a separate disk when regenerating only 
     ]);
 
     // The conversion already exists on the conversions disk, so onlyMissing must skip it.
-    // Regression: the existence check used `disk` instead of `conversions_disk`, looked in the
-    // wrong disk, never found the file, and needlessly regenerated every conversion.
     expect(filemtime($conversion))->toBe($createdAt);
 });
 

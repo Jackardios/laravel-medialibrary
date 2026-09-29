@@ -48,7 +48,7 @@ it('optimizes a conversion with the optimizers from the config', function () {
         ->and($manipulations['optimize'][0]->getOptimizers()[1])->toBeInstanceOf(CountingOptimizer::class);
 });
 
-it('keeps an optimizer chain given to the conversion', function () {
+it('optimizes with the default chain without building it when no optimizers are given', function () {
     $conversion = Conversion::create('thumb')->optimize();
 
     expect($conversion->getManipulations()->getManipulationArgument('optimize'))->toBe([])
