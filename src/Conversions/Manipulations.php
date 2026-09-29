@@ -130,7 +130,7 @@ class Manipulations
      *
      * @return array<int, array{0: string, 1: class-string<BackedEnum>, 2: bool}>
      */
-    protected static function enumParameters(string $manipulationName): array
+    private static function enumParameters(string $manipulationName): array
     {
         if (array_key_exists($manipulationName, self::$enumParameters)) {
             return self::$enumParameters[$manipulationName];
@@ -157,7 +157,7 @@ class Manipulations
     }
 
     /** @param class-string<BackedEnum> $enumClass */
-    protected static function castToEnum(mixed $value, string $enumClass): mixed
+    private static function castToEnum(mixed $value, string $enumClass): mixed
     {
         if (! is_string($value) && ! is_int($value)) {
             return $value;
