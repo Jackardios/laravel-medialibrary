@@ -67,7 +67,15 @@ Because there are many breaking changes an upgrade is not that easy. There are m
 
 - Replace the package: `composer remove spatie/laravel-medialibrary` and `composer require jackardios/laravel-medialibrary:^2.0`. The namespace stays `Spatie\MediaLibrary`, so no code changes are needed for that.
 - Upgrade to spatie 11.23.8 first if you are on an older 11.x; the steps of the upstream releases apply.
-- 2.0 behaves like spatie 11.23.8 except for what the 2.0.0 and 1.0.0 entries of the [changelog](CHANGELOG.md) list. The sections above on adding media (urls on private networks, refused and sanitized file names) apply to you as well. `media-library:regenerate` behaves as upstream's unless you add the new `--trust-database` or `--queue-all`.
+- 2.0 behaves like spatie 11.23.8 except for what the 2.0.0 and 1.0.0 entries of the [changelog](CHANGELOG.md) list. The sections above on adding media (urls on private networks, refused and sanitized file names) apply to you as well.
+- `media-library:regenerate` behaves as upstream's unless you add the new `--trust-database` or `--queue-all`. Upstream's `--queue-all` dispatched two jobs per media, one for its conversions and one for its responsive images; the fork's dispatches one `RegenerateMediaJob` per media, which downloads the original once, on the connection of `--queue-connection` or `queue_connection_name`.
+- A class that overrides one of these methods must match the fork's signature:
+  - `RegenerateCommand::handle(...): int` (upstream `void`).
+  - `Media::saveOrTouch()` is public (upstream protected).
+  - `Media::markAsConversionGenerated(string $conversionName, bool $persist = true)`.
+  - `Filesystem::removeFile(Media $media, string $path, ?string $disk = null)`.
+  - `ResponsiveImageGenerator::generateResponsiveImages(Media $media, ?string $baseImage = null)`.
+  - `ResponsiveImageGenerator::cleanResponsiveImages()` (protected) is removed.
 
 ## Upgrading spatie/laravel-medialibrary
 
