@@ -3,7 +3,7 @@ title: Requirements
 weight: 5
 ---
 
-Laravel Media Library 2.x requires **PHP 8.3+** and **Laravel 12+**. Laravel 10 and 11 and PHP 8.2 are supported by 1.x.
+Laravel Media Library 2.x requires **PHP 8.3–8.5** and **Laravel 12 or 13**. Laravel 10 and 11 and PHP 8.2 are supported by 1.x.
 
 The [exif extension](http://php.net/manual/en/exif.installation.php) is required (on most systems it will be installed by default). 
 To create derived images **[GD](http://php.net/manual/en/book.image.php)** needs to be installed on your server. 
