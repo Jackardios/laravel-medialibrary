@@ -118,8 +118,12 @@ class MediaStream implements Responsable
 
     protected function getFileNameWithSuffix(Collection $mediaItems, int $currentIndex): string
     {
-        // The zip replaces these characters itself, which could make two names the same.
-        $fileName = str_replace(['\\', ':', '*', '?', '"', '<', '>', '|'], '_', $mediaItems[$currentIndex]->getDownloadFilename());
+        $fileName = $this->replaceCharactersTheZipDoesNotAllow(str_replace('\\', '_', $mediaItems[$currentIndex]->getDownloadFilename()));
+
+        // A name such as `../evil.txt` would leave the directory the zip is extracted to.
+        $fileName = collect(explode('/', $fileName))
+            ->reject(fn (string $segment) => in_array($segment, ['', '.', '..'], true))
+            ->implode('/');
 
         $prefix = $this->getZipFileNamePrefix($mediaItems, $currentIndex);
 
@@ -155,10 +159,18 @@ class MediaStream implements Responsable
 
         $prefix = str_replace('\\', '/', (string) $media->getCustomProperty('zip_filename_prefix'));
 
-        $prefix = collect(explode('/', $prefix))
+        $prefix = collect(explode('/', $this->replaceCharactersTheZipDoesNotAllow($prefix)))
             ->reject(fn (string $segment) => $segment === '.' || $segment === '..')
             ->implode('/');
 
         return ltrim($prefix, '/');
+    }
+
+    /**
+     * The zip replaces these characters itself, which could make two names the same.
+     */
+    protected function replaceCharactersTheZipDoesNotAllow(string $path): string
+    {
+        return str_replace([':', '*', '?', '"', '<', '>', '|'], '_', $path);
     }
 }

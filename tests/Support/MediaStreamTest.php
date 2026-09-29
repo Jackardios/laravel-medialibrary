@@ -270,6 +270,29 @@ it('gives every file a unique name once the zip has replaced the characters it d
         ->toBe(['a_b.jpg', 'a_b (1).jpg', 'A_B (2).jpg', 'dir_a_b.jpg']);
 });
 
+it('keeps a file inside the zip whatever its download name', function () {
+    $media = collect(['../../evil.txt', 'sub/../../other.txt', '/absolute.txt'])->map(function (string $downloadName) {
+        $media = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()
+            ->withCustomProperties(['download_name' => $downloadName])
+            ->toMediaCollection();
+
+        return MediaWithDownloadName::find($media->id);
+    });
+
+    expect(zipEntryNames(MediaStream::create('my-media.zip')->addMedia($media)))
+        ->toBe(['evil.txt', 'sub/other.txt', 'absolute.txt']);
+});
+
+it('gives every file a unique name once the zip has replaced the characters of their prefixes', function () {
+    $media = collect(['a:', 'a_'])->map(fn (string $prefix) => $this->testModel
+        ->addMedia($this->getTestJpg())
+        ->preservingOriginal()
+        ->withCustomProperties(['zip_filename_prefix' => $prefix])
+        ->toMediaCollection());
+
+    expect(zipEntryNames(MediaStream::create('my-media.zip')->addMedia($media)))->toBe(['a_test.jpg', 'a_test (1).jpg']);
+});
+
 it('names the files the same way every time the zip is streamed', function () {
     $mediaStream = MediaStream::create('my-media.zip')->addMedia(Media::all());
 
