@@ -3,6 +3,7 @@
 namespace Spatie\MediaLibrary\Support;
 
 use Illuminate\Support\Str;
+use RuntimeException;
 use Spatie\TemporaryDirectory\TemporaryDirectory as BaseTemporaryDirectory;
 
 class TemporaryDirectory
@@ -21,8 +22,9 @@ class TemporaryDirectory
     {
         $path = static::getBasePath();
 
-        if (! is_dir($path)) {
-            mkdir($path, 0777, true);
+        // Another process may create it at the same time.
+        if (! is_dir($path) && ! @mkdir($path, 0777, true) && ! is_dir($path)) {
+            throw new RuntimeException("Could not create the temporary directory `{$path}`.");
         }
 
         return (string) tempnam($path, 'media-library');
