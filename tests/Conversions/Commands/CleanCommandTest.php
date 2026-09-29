@@ -1,9 +1,12 @@
 <?php
 
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Spatie\MediaLibrary\MediaLibraryServiceProvider;
 use Spatie\MediaLibrary\Support\UrlGenerator\DefaultUrlGenerator;
 use Spatie\MediaLibrary\Tests\Support\PathGenerator\CustomPathGenerator;
 use Spatie\MediaLibrary\Tests\Support\PathGenerator\SeparatedPathGenerator;
@@ -651,4 +654,22 @@ it('cleans deprecated responsive images when conversions are stored on a separat
     // `conversions_disk`, so deprecated responsive images on a separate disk were left behind.
     expect($media->responsive_images)->toEqual($originalResponsiveImagesContent);
     $this->assertFileDoesNotExist($deprecatedResponsiveImagesPath);
+});
+
+class CleanTestSoftDeletingMedia extends Media
+{
+    use SoftDeletes;
+}
+
+it('keeps the directory of a soft deleted media', function () {
+    Schema::table('media', fn (Blueprint $table) => $table->softDeletes());
+    config()->set('media-library.media_model', CleanTestSoftDeletingMedia::class);
+    (new MediaLibraryServiceProvider(app()))->register()->boot();
+
+    $media = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images');
+    $media->delete();
+
+    $this->artisan('media-library:clean')->assertSuccessful();
+
+    expect($media->getPath())->toBeFile();
 });

@@ -250,7 +250,11 @@ class CleanCommand extends Command
     {
         $usedDirectoriesByDisk = [];
 
-        $this->mediaRepository->all()->each(function (Media $media) use (&$usedDirectoriesByDisk, $prefix): void {
+        // A soft deleted media keeps its files until it is force deleted.
+        $query = $this->mediaRepository->queryAll();
+        $query = $query->hasMacro('withTrashed') ? $query->withTrashed() : $query; // @phpstan-ignore method.notFound
+
+        $query->cursor()->each(function (Media $media) use (&$usedDirectoriesByDisk, $prefix): void {
             $pathGenerator = PathGeneratorFactory::create($media);
             $conversionsDisk = $this->conversionsDiskName($media);
 
