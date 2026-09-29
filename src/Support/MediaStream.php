@@ -128,7 +128,7 @@ class MediaStream implements Responsable
         $prefix = $this->getZipFileNamePrefix($mediaItems, $currentIndex);
 
         $extension = pathinfo($fileName, PATHINFO_EXTENSION);
-        $fileNameWithoutExtension = pathinfo($fileName, PATHINFO_FILENAME);
+        $fileNameWithoutExtension = $extension === '' ? $fileName : substr($fileName, 0, -strlen($extension) - 1);
 
         // Number a duplicate until its name is free, which it may not be when another file is
         // already named like a numbered duplicate. Names differing in case only are duplicates

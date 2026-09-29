@@ -283,6 +283,19 @@ it('keeps a file inside the zip whatever its download name', function () {
         ->toBe(['evil.txt', 'sub/other.txt', 'absolute.txt']);
 });
 
+it('numbers a duplicate file name in its own directory', function () {
+    $media = collect(['sub/a.txt', 'sub/a.txt', 'sub.d/README', 'sub.d/README'])->map(function (string $downloadName) {
+        $media = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()
+            ->withCustomProperties(['download_name' => $downloadName])
+            ->toMediaCollection();
+
+        return MediaWithDownloadName::find($media->id);
+    });
+
+    expect(zipEntryNames(MediaStream::create('my-media.zip')->addMedia($media)))
+        ->toBe(['sub/a.txt', 'sub/a (1).txt', 'sub.d/README', 'sub.d/README (1)']);
+});
+
 it('gives every file a unique name once the zip has replaced the characters of their prefixes', function () {
     $media = collect(['a:', 'a_'])->map(fn (string $prefix) => $this->testModel
         ->addMedia($this->getTestJpg())

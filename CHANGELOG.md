@@ -17,7 +17,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - Upstream's blocklist of dangerous file names: a segment such as `.php`, `.phtml`, `.phar`, `.htaccess`, `.cgi`, `.asp` or `.jsp` anywhere in the name throws `FileNameNotAllowed`; new config keys `disallowed_extensions` and `allowed_extensions` (upstream 11.23.0). The fork also refuses `.user.ini` and `web.config`, checks the name a custom sanitizer or file namer made and the new name of a renamed media, and refuses a name that leaves its directory (`..`, a leading `/`, a backslash) or names a Windows drive or data stream (`:`). The blocklist ignores the dots and spaces Windows drops from the end of a name (`shell.php.`).
 - The default file name sanitizer also replaces `: * ? " < > |` and invalid utf-8, strips trailing dots and spaces, and prefixes reserved Windows device names (`CON`, `NUL`, `COM1`, `LPT¹`, `CONIN$`, ...) with `_`.
 - The values of the extra attributes of an image tag (`img(extraAttributes: [...])`, `attributes()`) are escaped.
-- `zip_filename_prefix` can no longer climb out of the zip with `..` (upstream 11.23.1).
+- `zip_filename_prefix` can no longer climb out of the zip with `..` (upstream 11.23.1), and neither can a download name (`getDownloadFilename()`) such as `../evil.txt`.
 - The file name of a download or zip response is escaped in `Content-Disposition`; a name that is not ascii is also sent in utf-8 (`filename*`).
 - `updateMedia()` throws `MediaCannotBeUpdated` for media that belongs to another model instead of changing it.
 
@@ -58,7 +58,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - A conversion without manipulations no longer takes away the original that later conversions and responsive images use.
 - Conversion names resolve to the conversion of the media's collection when several collections register the same name.
 - Base64 data uris with parameters (`data:image/png;name=a.png;base64,...`) are accepted.
-- Every file in a media zip gets a unique name, also when a file is already named like a numbered duplicate, after the zip has replaced the characters it does not allow, and regardless of case.
+- Every file in a media zip gets a unique name, also when a file is already named like a numbered duplicate, after the zip has replaced the characters it does not allow in the name and in `zip_filename_prefix`, and regardless of case. A duplicate in a directory is numbered in that directory.
 - The temporary directories of responsive image generation and `Media::copy()` are removed when they fail.
 - Conversion existence checks work with Windows separators and roots with a trailing slash.
 
