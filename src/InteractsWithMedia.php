@@ -2,7 +2,6 @@
 
 namespace Spatie\MediaLibrary;
 
-use Closure;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -169,24 +168,24 @@ trait InteractsWithMedia
         $downloader = config('media-library.media_downloader', DefaultDownloader::class);
         $temporaryFile = (new $downloader)->getTempFile($url);
 
-        return $this->addMediaFromTemporaryFile($temporaryFile, $allowedMimeTypes, function (FileAdder $fileAdder) use ($url, $temporaryFile) {
-            $filename = basename(urldecode((string) parse_url($url, PHP_URL_PATH)));
+        $fileAdder = $this->addMediaFromTemporaryFile($temporaryFile, $allowedMimeTypes);
 
-            if ($filename === '') {
-                $filename = 'file';
-            }
+        $filename = basename(urldecode((string) parse_url($url, PHP_URL_PATH)));
 
-            if (! Str::contains($filename, '.')) {
-                // The usual extension of the type (`svg` for `image/svg+xml`), or else its subtype.
-                $mimeType = (string) mime_content_type($temporaryFile);
-                $extension = MimeTypes::getDefault()->getExtensions($mimeType)[0] ?? Str::after($mimeType, '/');
-                $filename = "{$filename}.{$extension}";
-            }
+        if ($filename === '') {
+            $filename = 'file';
+        }
 
-            return $fileAdder
-                ->usingName(pathinfo($filename, PATHINFO_FILENAME))
-                ->usingFileName($filename);
-        });
+        if (! Str::contains($filename, '.')) {
+            // The usual extension of the type (`svg` for `image/svg+xml`), or else its subtype.
+            $mimeType = (string) mime_content_type($temporaryFile);
+            $extension = MimeTypes::getDefault()->getExtensions($mimeType)[0] ?? Str::after($mimeType, '/');
+            $filename = "{$filename}.{$extension}";
+        }
+
+        return $fileAdder
+            ->usingName(pathinfo($filename, PATHINFO_FILENAME))
+            ->usingFileName($filename);
     }
 
     /**
@@ -194,17 +193,14 @@ trait InteractsWithMedia
      * or right away when it is rejected.
      *
      * @param  array<int, array|string>  $allowedMimeTypes
-     * @param  null|Closure(FileAdder<TMedia>): FileAdder<TMedia>  $configure
      * @return FileAdder<TMedia>
      */
-    protected function addMediaFromTemporaryFile(string $temporaryFile, array $allowedMimeTypes = [], ?Closure $configure = null): FileAdder
+    protected function addMediaFromTemporaryFile(string $temporaryFile, array $allowedMimeTypes = []): FileAdder
     {
         try {
             $this->guardAgainstInvalidMimeType($temporaryFile, $allowedMimeTypes);
 
-            $fileAdder = app(FileAdderFactory::class)->create($this, $temporaryFile)->withTemporaryFile();
-
-            return $configure ? $configure($fileAdder) : $fileAdder;
+            return app(FileAdderFactory::class)->create($this, $temporaryFile)->withTemporaryFile();
         } catch (Throwable $exception) {
             if (is_file($temporaryFile)) {
                 unlink($temporaryFile);
@@ -226,7 +222,7 @@ trait InteractsWithMedia
 
         file_put_contents($tmpFile, $text);
 
-        return $this->addMediaFromTemporaryFile($tmpFile, configure: fn (FileAdder $fileAdder) => $fileAdder->usingFileName('text.txt'));
+        return $this->addMediaFromTemporaryFile($tmpFile)->usingFileName('text.txt');
     }
 
     /**
@@ -277,7 +273,7 @@ trait InteractsWithMedia
 
         file_put_contents($tmpFile, $stream);
 
-        return $this->addMediaFromTemporaryFile($tmpFile, configure: fn (FileAdder $fileAdder) => $fileAdder->usingFileName('text.txt'));
+        return $this->addMediaFromTemporaryFile($tmpFile)->usingFileName('text.txt');
     }
 
     /**
