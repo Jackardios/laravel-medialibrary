@@ -475,7 +475,7 @@ If you are planning on working with image manipulations it's recommended to conf
 
 ### Setting up optimization tools
 
-Media library will use these tools to [optimize converted images](https://spatie.be/docs/laravel-medialibrary/v11/converting-images/optimizing-converted-images) if they are present on your system:
+Media library will use these tools to [optimize converted images](converting-images/optimizing-converted-images.md) if they are present on your system:
 
 - [JpegOptim](http://freecode.com/projects/jpegoptim)
 - [Optipng](http://optipng.sourceforge.net/)

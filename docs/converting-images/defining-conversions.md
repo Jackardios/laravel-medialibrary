@@ -9,7 +9,7 @@ Media conversions will be executed whenever  a `jpg`, `png`, `svg`, `webp`, `avi
 
 Internally, [spatie/image](https://spatie.be/docs/image/v3) is used to manipulate the images. You can use [any manipulation function](https://spatie.be/docs/image) from that package.
 
-Please check [the image generator docs](/docs/laravel-medialibrary/v11/converting-other-file-types/using-image-generators) for additional installation requirements when working with PDF, SVG or video formats.
+Please check [the image generator docs](../converting-other-file-types/using-image-generators.md) for additional installation requirements when working with PDF, SVG or video formats.
 
 ## A single conversion
 
@@ -87,7 +87,7 @@ $media->getUrl('old-picture') // the url to the sepia, bordered version
 
 ## Performing conversions on specific collections
 
-By default a conversion will be performed on all files regardless of which [collection](/docs/laravel-medialibrary/v11/working-with-media-collections/simple-media-collections) is used. Conversions can also be performed on specific collections by adding a call to `performOnCollections`.
+By default a conversion will be performed on all files regardless of which [collection](../working-with-media-collections/simple-media-collections.md) is used. Conversions can also be performed on specific collections by adding a call to `performOnCollections`.
 
 This is how that looks like in the model:
 
@@ -128,7 +128,7 @@ public function registerMediaCollections(): void
 
 ## Queuing conversions
 
-By default, a conversion will be added to the connection and queue that you've [specified in the configuration](/docs/laravel-medialibrary/v11/installation-setup). If you want your image to be created directly (and not on a queue) use `nonQueued` on a conversion.
+By default, a conversion will be added to the connection and queue that you've [specified in the configuration](../installation-setup.md). If you want your image to be created directly (and not on a queue) use `nonQueued` on a conversion.
 
 ```php
 // in your model
