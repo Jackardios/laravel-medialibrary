@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Http;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileIsTooBig;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FunctionalityNotAvailable;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidUrl;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\UnreachableUrl;
 use Throwable;
@@ -36,9 +37,9 @@ class HttpFacadeDownloader implements Downloader
         } catch (Throwable $exception) {
             @unlink($temporaryFile);
 
-            // Guzzle 8 wraps an exception thrown while the body is written (FileIsTooBig) or a redirect is checked (InvalidUrl).
+            // Guzzle 8 wraps an exception thrown while the body is written or a redirect is checked.
             for ($cause = $exception; $cause !== null; $cause = $cause->getPrevious()) {
-                if ($cause instanceof FileIsTooBig || $cause instanceof InvalidUrl) {
+                if ($cause instanceof FileIsTooBig || $cause instanceof InvalidUrl || $cause instanceof FunctionalityNotAvailable) {
                     throw $cause;
                 }
             }
@@ -66,9 +67,13 @@ class HttpFacadeDownloader implements Downloader
         return function (RequestInterface $request, array $options) use ($send, $guard, $url) {
             $uri = $request->getUri();
             $address = $guard->addressFor((string) $uri);
+            $pinned = $address !== null && filter_var(trim($uri->getHost(), '[]'), FILTER_VALIDATE_IP) === false;
 
-            // A redirect is sent with the options of the request before it, pin included. Without
-            // ext-curl Guzzle sends through PHP streams, which cannot be pinned to an address.
+            if ($pinned && ! $this->canConnectToCheckedAddress()) {
+                throw FunctionalityNotAvailable::curlRequiredToConnectToCheckedAddress((string) $uri);
+            }
+
+            // A redirect is sent with the options of the request before it, pin included.
             if (defined('CURLOPT_RESOLVE')) {
                 unset($options['curl'][CURLOPT_RESOLVE]);
             }
@@ -79,7 +84,7 @@ class HttpFacadeDownloader implements Downloader
                 $options['proxy'] = '';
             }
 
-            if ($address !== null && defined('CURLOPT_RESOLVE') && filter_var(trim($uri->getHost(), '[]'), FILTER_VALIDATE_IP) === false) {
+            if ($pinned) {
                 $port = $uri->getPort() ?? ($uri->getScheme() === 'https' ? 443 : 80);
                 $pinnedAddress = str_contains($address, ':') ? "[{$address}]" : $address;
 
@@ -92,6 +97,15 @@ class HttpFacadeDownloader implements Downloader
 
             return $send($request, $options);
         };
+    }
+
+    /**
+     * Guzzle connects to the checked address through curl; without it, Guzzle sends through
+     * PHP streams, which would look the host up again.
+     */
+    protected function canConnectToCheckedAddress(): bool
+    {
+        return defined('CURLOPT_RESOLVE') && (function_exists('curl_exec') || function_exists('curl_multi_exec'));
     }
 
     protected function limitSize(mixed $sink, string $url): StreamInterface

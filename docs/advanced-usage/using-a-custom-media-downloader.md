@@ -21,7 +21,7 @@ A proxy would look the host up again, so the `HttpFacadeDownloader` downloads a 
 
 Setting `media_downloader_blocks_private_networks` to `false` (or `MEDIA_DOWNLOADER_BLOCKS_PRIVATE_NETWORKS=false`) disables the check. Only do that when every URL comes from a trusted source.
 
-Without the curl extension the `HttpFacadeDownloader` still checks every URL, but it cannot make the connection to the checked address.
+The `HttpFacadeDownloader` needs the curl extension to connect to the checked address. Without it, it throws `FunctionalityNotAvailable` for a checked host; the `DefaultDownloader` does not need curl.
 
 ## Writing your own downloader
 

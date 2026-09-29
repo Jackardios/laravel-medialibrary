@@ -5,6 +5,7 @@ use Spatie\MediaLibrary\Downloaders\DefaultDownloader;
 use Spatie\MediaLibrary\Downloaders\HttpFacadeDownloader;
 use Spatie\MediaLibrary\Downloaders\UrlGuard;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileIsTooBig;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FunctionalityNotAvailable;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidUrl;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\UnreachableUrl;
 use Spatie\MediaLibrary\Tests\TestSupport\LocalHttpServer;
@@ -97,6 +98,26 @@ it('connects to the address the guard checked when a proxy is configured', funct
 
     expect(File::get($temporaryFile))->toBe('media.test:'.LocalHttpServer::port());
 })->with('downloaders');
+
+it('refuses a checked host that the http facade downloader cannot connect to by its address', function () {
+    app()->instance(UrlGuard::class, new UrlGuardResolvingMediaTest);
+
+    // Without ext-curl, Guzzle sends through PHP streams.
+    $downloader = new class extends HttpFacadeDownloader
+    {
+        protected function canConnectToCheckedAddress(): bool
+        {
+            return false;
+        }
+    };
+
+    expect(fn () => $downloader->getTempFile('http://media.test:'.LocalHttpServer::port().'/host'))
+        ->toThrow(FunctionalityNotAvailable::class, 'curl');
+
+    $temporaryFile = $downloader->getTempFile(LocalHttpServer::url('/files/test.jpg'));
+
+    expect(File::get($temporaryFile))->toBe(File::get($this->getTestJpg()));
+});
 
 it('stops downloading a file bigger than the maximum file size', function (string $downloader) {
     config()->set('media-library.max_file_size', 100 * 1024);
