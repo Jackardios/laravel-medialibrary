@@ -872,3 +872,65 @@ it('regenerates a media stored without responsive images', function (array $opti
     'in the command' => [[]],
     'queued per media' => [['--queue-all' => true]],
 ]);
+
+it('reports a deferred conversion that fails', function () {
+    $media = $this->testModelWithConversionDeferred
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    app(DeferredCallbackCollection::class)->invoke();
+    file_put_contents($media->getPath(), 'not an image');
+
+    $this->artisan('media-library:regenerate')
+        ->expectsOutputToContain("Media id {$media->id}:")
+        ->assertFailed();
+});
+
+it('leaves other deferred callbacks to the end of the command', function () {
+    $failingMedia = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->preservingOriginal()
+        ->toMediaCollection('images');
+    file_put_contents($failingMedia->getPath(), 'not an image');
+
+    $media = $this->testModelWithConversionDeferred
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+    app(DeferredCallbackCollection::class)->invoke();
+    File::delete($media->getPath('thumb'));
+
+    $invoked = false;
+    defer(function () use (&$invoked) {
+        $invoked = true;
+    });
+
+    // Laravel runs deferred callbacks after a command only when it succeeds.
+    $this->artisan('media-library:regenerate')->assertFailed();
+
+    expect($invoked)->toBeFalse()
+        ->and($media->getPath('thumb'))->toBeFile();
+});
+
+it('performs the deferred conversions when queueing the others fails', function () {
+    $model = RegenerateTestModelWithDeferredAndQueuedConversions::create(['name' => 'test']);
+    $media = $model->addMedia($this->getTestFilesDirectory('test.jpg'))->toMediaCollection();
+    app(DeferredCallbackCollection::class)->invoke();
+    File::delete($media->getPath('deferred'));
+
+    config()->set('media-library.queue_connection_name', 'missing');
+
+    $this->artisan('media-library:regenerate')
+        ->expectsOutputToContain("Media id {$media->id}:")
+        ->assertFailed();
+
+    expect($media->getPath('deferred'))->toBeFile();
+});
+
+class RegenerateTestModelWithDeferredAndQueuedConversions extends TestModel
+{
+    public function registerMediaConversions(?Media $media = null): void
+    {
+        $this->addMediaConversion('deferred')->width(20)->deferred();
+        $this->addMediaConversion('queued')->width(20)->queued();
+    }
+}

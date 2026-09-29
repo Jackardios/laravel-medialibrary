@@ -162,11 +162,23 @@ class RegenerateCommand extends Command
             $onlyMissing = false;
         }
 
-        $this->fileManipulator->createDerivedFiles($media, $only, $onlyMissing, $withResponsiveImages);
+        // Laravel would run the deferred conversions after the command, only when it succeeds, and
+        // would not count their failures. Collect them apart and perform them here, with their media.
+        $deferredCallbacks = app(DeferredCallbackCollection::class);
+        $deferredConversions = new DeferredCallbackCollection;
+        app()->instance(DeferredCallbackCollection::class, $deferredConversions);
 
-        // Laravel runs deferred callbacks after a command only when it succeeds, so the deferred
-        // conversions run here, with their media. Like any deferred callback, a failure is reported.
-        app(DeferredCallbackCollection::class)->invoke();
+        try {
+            $this->fileManipulator->createDerivedFiles($media, $only, $onlyMissing, $withResponsiveImages);
+        } finally {
+            app()->instance(DeferredCallbackCollection::class, $deferredCallbacks);
+
+            while (count($deferredConversions) > 0) {
+                $callback = $deferredConversions->first();
+                unset($deferredConversions[0]);
+                $callback();
+            }
+        }
     }
 
     /**
