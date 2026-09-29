@@ -371,7 +371,7 @@ class Filesystem
         $disk = $this->filesystem->disk($media->disk);
 
         // Stop the update before the database points at a file that is not there. A missing
-        // original is not moved at all, as before.
+        // original is not moved at all.
         if ($disk->exists($oldFile) && ! $disk->move($oldFile, $newFile)) {
             throw MediaCannotBeUpdated::fileCannotBeMoved($media, $oldFile, $newFile);
         }
@@ -453,10 +453,8 @@ class Filesystem
                 $oldFile = $directory.$fileName;
                 $newFile = $directory.$newFileName;
 
-                // The physical file might be missing (failed generation, manual deletion, etc.). We still
-                // rewrite the stored name below so the srcset stays consistent and a later regenerate can
-                // recreate the file; leaving the stale name would keep the srcset broken forever.
-                // A file that could not be moved keeps its name, under which it is still stored.
+                // A missing file still gets its new name, so a later regenerate creates it; a file
+                // that could not be moved keeps its old name.
                 if ($disk->exists($oldFile) && ! $disk->move($oldFile, $newFile)) {
                     continue;
                 }

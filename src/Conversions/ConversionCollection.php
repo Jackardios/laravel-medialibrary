@@ -52,8 +52,7 @@ class ConversionCollection extends Collection
         $conversions = $this->filter(fn (Conversion $conversion) => $conversion->getName() === $name);
 
         // The same name may be registered for different collections: prefer the conversion
-        // performed on the media's collection. Falling back to the first one keeps names that
-        // are not performed on it resolvable, as before.
+        // performed on the media's collection, or else the first one.
         $conversion = (isset($this->media)
             ? $conversions->first(fn (Conversion $conversion) => $conversion->shouldBePerformedOn($this->media->collection_name))
             : null) ?? $conversions->first();

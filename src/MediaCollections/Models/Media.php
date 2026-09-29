@@ -105,8 +105,7 @@ class Media extends Model implements Attachable, Htmlable, Responsable
 
     /**
      * How many media keep their conversion collection. The urls of one media are mostly
-     * built together, so a few are enough; keeping one for every media of a long listing
-     * held about 9 KB each and slowed the cycle collector down.
+     * built together, so a few are enough.
      */
     protected const MEMOIZED_CONVERSION_COLLECTIONS = 16;
 
@@ -335,20 +334,12 @@ class Media extends Model implements Attachable, Htmlable, Responsable
     }
 
     /**
-     * The conversions registered for this media, built once per media instance.
+     * The conversions registered for this media, built once while its attributes are unchanged.
      *
-     * Building the collection instantiates the owner model and re-runs every
-     * conversion registration, and URL generation needs it once per URL (each
-     * conversion URL and every srcset entry), so serializing one image used to
-     * rebuild it about ten times.
-     *
-     * The memo is keyed by the raw attributes: any attribute change (collection,
-     * model type, manipulations, or anything else a registration callback may
-     * read from the media) builds a fresh collection. Owners that register
-     * conversions using the model instance are never memoized, because their
-     * conversions may follow the owner's state. The returned collection is
-     * shared, so callers must not mutate it or its conversions; processing paths
-     * that do keep using {@see ConversionCollection::createForMedia()}.
+     * Owners that register conversions using the model instance are never memoized, because
+     * their conversions may follow the owner's state. The returned collection is shared, so
+     * callers must not change it or its conversions; processing uses
+     * {@see ConversionCollection::createForMedia()}.
      */
     public function getConversionCollection(): ConversionCollection
     {

@@ -36,7 +36,7 @@ class HttpFacadeDownloader implements Downloader
         } catch (Throwable $exception) {
             @unlink($temporaryFile);
 
-            // Guzzle 8 wraps an exception thrown while the body is written, such as FileIsTooBig.
+            // Guzzle 8 wraps an exception thrown while the body is written (FileIsTooBig) or a redirect is checked (InvalidUrl).
             for ($cause = $exception; $cause !== null; $cause = $cause->getPrevious()) {
                 if ($cause instanceof FileIsTooBig || $cause instanceof InvalidUrl) {
                     throw $cause;

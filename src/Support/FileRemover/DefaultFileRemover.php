@@ -98,7 +98,7 @@ class DefaultFileRemover implements FileRemover
                         ->map(static fn (string $imagePath) => $mediaRoot.$imagePath)
                         ->toArray();
 
-                    // The registered images of the original are among the files named after it.
+                    // Also images of the original that are no longer registered.
                     $imagePaths = array_unique(array_merge(
                         array_intersect($allFilePaths, $responsiveImagesFilePaths),
                         array_filter(

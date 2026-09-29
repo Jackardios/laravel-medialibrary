@@ -379,7 +379,7 @@ class FileAdder
     public function toMediaCollection(string $collectionName = 'default', string $diskName = ''): Media
     {
         try {
-            // Sanitizes and names the file itself.
+            // toMediaCollectionFromRemote() names the file itself.
             if ($this->file instanceof RemoteFile) {
                 return $this->toMediaCollectionFromRemote($collectionName, $diskName);
             }
