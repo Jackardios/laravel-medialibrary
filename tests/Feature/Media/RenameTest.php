@@ -248,6 +248,10 @@ it('refuses a name that the blocklist does not accept or that leaves its directo
     'not allowed' => ['test.png', ['jpg']],
     'another media' => ['../2/test.jpg', []],
     'backslash' => ['..\\2\\test.jpg', []],
+    'php with a trailing space' => ['shell.php ', []],
+    'php in a data stream' => ['shell.php::$DATA', []],
+    'server config with a trailing dot' => ['web.config.', []],
+    'drive' => ['c:test.jpg', []],
 ]);
 
 it('renames the file into a directory of its own', function () {

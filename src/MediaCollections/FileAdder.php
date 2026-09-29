@@ -566,13 +566,13 @@ class FileAdder
     /**
      * Refuses a file name that leaves its directory, or that the blocklist or allow-list does not
      * accept, whichever sanitizer, file namer or rename made it. A name may put the file in a
-     * directory of its own (`other/file.jpg`).
+     * directory of its own (`other/file.jpg`), but not on a drive or in a data stream (`:`) on Windows.
      *
      * @internal
      */
     public function guardAgainstUnsafeFileName(string $originalFileName, string $fileName): void
     {
-        if (str_contains($fileName, '\\') || array_intersect(explode('/', $fileName), ['', '.', '..']) !== []) {
+        if (strpbrk($fileName, '\\:') !== false || array_intersect(explode('/', $fileName), ['', '.', '..']) !== []) {
             throw FileNameNotAllowed::leavesItsDirectory($originalFileName, $fileName);
         }
 
@@ -581,11 +581,14 @@ class FileAdder
 
     protected function guardAgainstDisallowedFileName(string $originalFileName, string $sanitizedFileName): void
     {
-        if (in_array(strtolower(basename($sanitizedFileName)), static::$disallowedFileNames, true)) {
+        // Windows drops the dots and spaces a name ends with: `shell.php.` is stored as `shell.php`.
+        $storedFileName = rtrim($sanitizedFileName, '. ');
+
+        if (in_array(strtolower(basename($storedFileName)), static::$disallowedFileNames, true)) {
             throw FileNameNotAllowed::configuresTheServer($originalFileName, $sanitizedFileName);
         }
 
-        $extensions = $this->extensionsFromFileName($sanitizedFileName);
+        $extensions = $this->extensionsFromFileName($storedFileName);
 
         $offending = array_intersect($extensions, $this->disallowedExtensions());
 
@@ -599,7 +602,7 @@ class FileAdder
             return;
         }
 
-        $finalExtension = strtolower(pathinfo($sanitizedFileName, PATHINFO_EXTENSION));
+        $finalExtension = strtolower(pathinfo($storedFileName, PATHINFO_EXTENSION));
 
         if (! in_array($finalExtension, $allowedExtensions, true)) {
             throw FileNameNotAllowed::create($originalFileName, $sanitizedFileName, $finalExtension ?: null);

@@ -89,7 +89,7 @@ $yourModel
    ->toMediaCollection();
 ```
 
-**Security note.** By default, Media Library rejects uploads whose file name contains a potentially executable extension such as `.php` or `.phtml`. The check looks at every extension segment in the name, so `malicious.php.jpg` is blocked too. Files that configure PHP or the web server for their directory (`.htaccess`, `.user.ini`, `web.config`) are rejected as well. The check also applies to the name your own `sanitizingFileName` callable or file namer returns, and to the new name of a renamed media. A name that leaves its directory (`..`, a leading `/`, a backslash) is rejected too.
+**Security note.** By default, Media Library rejects uploads whose file name contains a potentially executable extension such as `.php` or `.phtml`. The check looks at every extension segment in the name, so `malicious.php.jpg` is blocked too. Files that configure PHP or the web server for their directory (`.htaccess`, `.user.ini`, `web.config`) are rejected as well. The check also applies to the name your own `sanitizingFileName` callable or file namer returns, and to the new name of a renamed media. A name that leaves its directory (`..`, a leading `/`, a backslash) or names a Windows drive or data stream (`:`) is rejected too, and the checks ignore the dots and spaces Windows drops from the end of a name (`shell.php.`).
 
 The blocked extensions can be configured (and an opt-in allowlist enabled) in `config/media-library.php`:
 

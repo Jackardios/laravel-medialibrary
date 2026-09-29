@@ -525,6 +525,10 @@ it('refuses a name made by a custom sanitizer that the blocklist does not accept
     'parent directory' => ['../1/test.jpg', []],
     'absolute' => ['/test.jpg', []],
     'backslash' => ['..\\test.jpg', []],
+    'php with a trailing space' => ['shell.php ', []],
+    'php in a data stream' => ['shell.php::$DATA', []],
+    'server config with a trailing dot' => ['web.config.', []],
+    'drive' => ['c:test.jpg', []],
 ]);
 
 it('refuses a name made by a file namer that the blocklist does not accept', function () {
