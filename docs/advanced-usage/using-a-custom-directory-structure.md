@@ -81,11 +81,3 @@ Keep in mind that path generators set in the model override those defined in the
 ### Defining a Custom Path Generator Inside a Model or Service Provider
 
  This approach allows for fine-grained control over the media directory structure on a per-model basis, without affecting global configuration.
-
-## Are you a visual learner?
-
-Here's a video that shows custom paths:
-
-<iframe width="560" height="315" src="https://www.youtube.com/embed/hCXtDyGcPSo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-
-Want to see more videos like this? Check out our [free video course on how to use Laravel Media Library](https://spatie.be/courses/discovering-laravel-media-library).

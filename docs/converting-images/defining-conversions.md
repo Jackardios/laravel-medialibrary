@@ -11,14 +11,6 @@ Internally, [spatie/image](https://spatie.be/docs/image/v3) is used to manipulat
 
 Please check [the image generator docs](/docs/laravel-medialibrary/v11/converting-other-file-types/using-image-generators) for additional installation requirements when working with PDF, SVG or video formats.
 
-## Are you a visual learner?
-
-Here's a video that shows how to work with conversions.
-
-<iframe width="560" height="315" src="https://www.youtube.com/embed/1i-HTyyEmvM" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-
-Want to see more videos like this? Check out our [free video course on how to use Laravel Media Library](https://spatie.be/courses/discovering-laravel-media-library).
-
 ## A single conversion
 
 You should add a method called `registerMediaConversions` to your model. In that model you can define the media conversion. Here's an example:

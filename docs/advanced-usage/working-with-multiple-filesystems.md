@@ -43,12 +43,3 @@ return [
 ```
 
 With this in place, conversions and responsive images are saved on the `public` disk by default, while the originals still live on `s3`. Anything you set explicitly — either via `->storingConversionsOnDisk(...)` on a `FileAdder` or via `->storeConversionsOnDisk(...)` on a media collection — takes precedence. When the value is `null` (the default), conversions stay on the originals' disk, preserving the historical behavior.
-
-## Are you a visual learner?
-
-Here's a video that shows how to work with multiple filesystems.
-
-<iframe width="560" height="315" src="https://www.youtube.com/embed/kUXKhjKvmsY" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-
-Want to see more videos like this? Check out our [free video course on how to use Laravel Media Library](https://spatie.be/courses/discovering-laravel-media-library).
-
