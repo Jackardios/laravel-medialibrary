@@ -1,6 +1,6 @@
 # Laravel Media Library Reference
 
-Complete reference for `spatie/laravel-medialibrary`. Full documentation: https://spatie.be/docs/laravel-medialibrary
+Complete reference for `jackardios/laravel-medialibrary`. Full documentation: https://github.com/jackardios/laravel-medialibrary/tree/main/docs
 
 ## Model Setup
 
