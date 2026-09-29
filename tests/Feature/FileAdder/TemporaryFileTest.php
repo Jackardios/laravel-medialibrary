@@ -123,3 +123,17 @@ it('removes the file holding a stream once it was added', function () {
 
     expect(leftTemporaryFiles($contents))->toBe([]);
 });
+
+it('adds the other media of an unsaved model when one is not accepted, and removes every downloaded file', function () {
+    $model = new TestModelAcceptingOnlyPdfs(['name' => 'unsaved']);
+
+    $model->addMediaFromUrl('https://example.com/image.jpg')->toMediaCollection();
+    $rejectedFile = RecordingDownloader::$temporaryFile;
+    $model->addMediaFromUrl('https://example.com/image.jpg')->toMediaCollection('other');
+
+    expect(fn () => $model->save())->toThrow(FileUnacceptableForCollection::class);
+
+    expect($rejectedFile)->not->toBeFile()
+        ->and(RecordingDownloader::$temporaryFile)->not->toBeFile()
+        ->and($model->getMedia('other'))->toHaveCount(1);
+});

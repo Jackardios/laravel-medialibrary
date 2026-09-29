@@ -698,11 +698,23 @@ trait InteractsWithMedia
 
     public function processUnattachedMedia(callable $callable): void
     {
-        foreach ($this->unAttachedMediaLibraryItems as $item) {
-            $callable($item['media'], $item['fileAdder']);
+        $items = $this->unAttachedMediaLibraryItems;
+        $this->unAttachedMediaLibraryItems = [];
+        $failure = null;
+
+        // A media that cannot be added does not keep the others from being added, or from
+        // having their temporary files removed.
+        foreach ($items as $item) {
+            try {
+                $callable($item['media'], $item['fileAdder']);
+            } catch (Throwable $exception) {
+                $failure ??= $exception;
+            }
         }
 
-        $this->unAttachedMediaLibraryItems = [];
+        if ($failure !== null) {
+            throw $failure;
+        }
     }
 
     protected function guardAgainstInvalidMimeType(string $file, ...$allowedMimeTypes): void

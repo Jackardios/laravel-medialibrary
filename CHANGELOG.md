@@ -30,7 +30,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - Renaming a media throws `MediaCannotBeUpdated` when its file cannot be moved, instead of saving a name that points to no file.
 - Files added from urls without an extension get the usual extension of their type (`jpg` for `image/jpeg`, `svg` for `image/svg+xml`).
 - Temporary files made by `addMediaFromUrl/String/Base64/Stream` are removed once the media is added or rejected, also with `preservingOriginal()`.
-- Adding media to an unsaved model uses the options of its own file adder, and adding media to a model whose `media` relation is loaded adds the media to that relation. A model that uses `InteractsWithMedia` without implementing `HasMedia` can be created and deleted.
+- Adding media to an unsaved model uses the options of its own file adder, and adding media to a model whose `media` relation is loaded adds the media to that relation. When one media of an unsaved model cannot be added, the others are still added and their temporary files removed; the first failure is thrown. A model that uses `InteractsWithMedia` without implementing `HasMedia` can be created and deleted.
 - `ResponsiveImagesGeneratedEvent` fires once the whole set, including the tiny placeholder, is recorded; `ConversionHasBeenCompletedEvent` fires once the conversion is recorded.
 - The responsive images job is queued after the database commit when `queue_conversions_after_database_commit` is on, like the conversion jobs. Jobs of media that was deleted before they ran are discarded.
 - Urls of disks with a configured `url` (S3 behind a CDN, R2, ...) percent-encode the file name, as urls of local disks do.
