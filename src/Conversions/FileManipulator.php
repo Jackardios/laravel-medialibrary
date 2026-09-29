@@ -30,15 +30,7 @@ class FileManipulator
             return;
         }
 
-        $allConversions = ConversionCollection::createForMedia($media)
-            ->filter(function (Conversion $conversion) use ($onlyConversionNames) {
-                if (count($onlyConversionNames) === 0) {
-                    return true;
-                }
-
-                return in_array($conversion->getName(), $onlyConversionNames);
-            })
-            ->filter(fn (Conversion $conversion) => $conversion->shouldBePerformedOn($media->collection_name));
+        $allConversions = $this->conversionsFor($media, $onlyConversionNames);
 
         if ($queueAll) {
             $this
@@ -84,17 +76,9 @@ class FileManipulator
             return;
         }
 
-        $conversions = ConversionCollection::createForMedia($media)
-            ->filter(function (Conversion $conversion) use ($onlyConversionNames) {
-                if (count($onlyConversionNames) === 0) {
-                    return true;
-                }
-
-                return in_array($conversion->getName(), $onlyConversionNames);
-            })
-            ->filter(fn (Conversion $conversion) => $conversion->shouldBePerformedOn($media->collection_name));
-
-        $conversions = $this->rejectAlreadyGeneratedConversions($conversions, $media, $onlyMissing, $verifyExistence);
+        $conversions = $this->rejectAlreadyGeneratedConversions(
+            $this->conversionsFor($media, $onlyConversionNames), $media, $onlyMissing, $verifyExistence
+        );
 
         $needsResponsiveImages = $withResponsiveImages && $this->hasResponsiveImagesOfOriginal($media);
 
@@ -141,6 +125,17 @@ class FileManipulator
         } finally {
             $temporaryDirectory->delete();
         }
+    }
+
+    /**
+     * The conversions of the media's collection, or only the named ones of them.
+     */
+    protected function conversionsFor(Media $media, array $onlyConversionNames): ConversionCollection
+    {
+        return ConversionCollection::createForMedia($media)->filter(
+            fn (Conversion $conversion) => $conversion->shouldBePerformedOn($media->collection_name)
+                && ($onlyConversionNames === [] || in_array($conversion->getName(), $onlyConversionNames))
+        );
     }
 
     /**
