@@ -51,7 +51,8 @@ trait InteractsWithMedia
 
     public static function bootInteractsWithMedia(): void
     {
-        static::deleting(function (HasMedia $model) {
+        // Not typed: every model using the trait gets these, also one that does not implement HasMedia.
+        static::deleting(function ($model) {
             if ($model->shouldDeletePreservingMedia()) {
                 return;
             }
@@ -66,7 +67,6 @@ trait InteractsWithMedia
         });
 
         // Media added before the model existed, with the options of the file adder that added it.
-        // Not typed: every model using the trait gets it, also one that does not implement HasMedia.
         static::created(function ($model) {
             $model->processUnattachedMedia(function (Media $media, FileAdder $fileAdder) use ($model) {
                 $fileAdder->attachToCreatedModel($model, $media);

@@ -88,6 +88,9 @@ class ModelUsingTheTraitOnly extends Model
     public $timestamps = false;
 }
 
-it('creates a model that uses the trait without implementing the interface', function () {
-    expect(ModelUsingTheTraitOnly::create(['name' => 'test'])->exists)->toBeTrue();
+it('creates and deletes a model that uses the trait without implementing the interface', function () {
+    $model = ModelUsingTheTraitOnly::create(['name' => 'test']);
+
+    expect($model->exists)->toBeTrue()
+        ->and($model->delete())->toBeTrue();
 });
