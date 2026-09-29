@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Http;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileIsTooBig;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidUrl;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\UnreachableUrl;
 use Throwable;
 
@@ -32,12 +33,19 @@ class HttpFacadeDownloader implements Downloader
             if (! $response->successful()) {
                 throw UnreachableUrl::create($url);
             }
-        } catch (ConnectionException|TooManyRedirectsException) {
-            @unlink($temporaryFile);
-
-            throw UnreachableUrl::create($url);
         } catch (Throwable $exception) {
             @unlink($temporaryFile);
+
+            // Guzzle 8 wraps an exception thrown while the body is written, such as FileIsTooBig.
+            for ($cause = $exception; $cause !== null; $cause = $cause->getPrevious()) {
+                if ($cause instanceof FileIsTooBig || $cause instanceof InvalidUrl) {
+                    throw $cause;
+                }
+            }
+
+            if ($exception instanceof ConnectionException || $exception instanceof TooManyRedirectsException) {
+                throw UnreachableUrl::create($url);
+            }
 
             throw $exception;
         }
@@ -65,13 +73,10 @@ class HttpFacadeDownloader implements Downloader
                 unset($options['curl'][CURLOPT_RESOLVE]);
             }
 
+            // A proxy (Guzzle and curl read HTTP_PROXY and the like) would resolve the host again.
+            // An empty proxy connects directly, also instead of the proxy of the environment.
             if ($address !== null) {
-                // A proxy (Guzzle and curl read HTTP_PROXY and the like) would resolve the host again.
-                unset($options['proxy']);
-
-                if (defined('CURLOPT_PROXY')) {
-                    $options['curl'][CURLOPT_PROXY] = '';
-                }
+                $options['proxy'] = '';
             }
 
             if ($address !== null && defined('CURLOPT_RESOLVE') && filter_var(trim($uri->getHost(), '[]'), FILTER_VALIDATE_IP) === false) {

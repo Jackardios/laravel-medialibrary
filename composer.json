@@ -50,7 +50,7 @@
         "ext-pdo_sqlite": "*",
         "ext-zip": "*",
         "aws/aws-sdk-php": "^3.293.10",
-        "guzzlehttp/guzzle": "^7.8.1",
+        "guzzlehttp/guzzle": "^7.8.1|^8.0",
         "larastan/larastan": "^3.0",
         "laravel/pint": "^1.24",
         "league/flysystem-aws-s3-v3": "^3.22",

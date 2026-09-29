@@ -8,7 +8,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 
 ### Requirements
 
-- PHP 8.3 – 8.5, Laravel 12 or 13, symfony/console 7.2 or 8. Laravel 10/11 and PHP 8.2 stay on 1.x.
+- PHP 8.3 – 8.5, Laravel 12 or 13, symfony/console 7.2 or 8. Laravel 10/11 and PHP 8.2 stay on 1.x. The `HttpFacadeDownloader` works with Guzzle 7 and 8.
 - The package keeps the `Spatie\MediaLibrary` namespace and now declares a conflict with `spatie/laravel-medialibrary`.
 
 ### Security
