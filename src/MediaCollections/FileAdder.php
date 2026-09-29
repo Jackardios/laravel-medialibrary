@@ -706,9 +706,8 @@ class FileAdder
                 }
             } catch (Throwable $exception) {
                 if (rescue(fn () => Storage::disk($media->disk)->fileExists($media->getPathRelativeToRoot()), false, false)) {
-                    // A non-queued conversion failed after the file was stored, so the media was added and
-                    // the collection keeps to its size limit, unless a transaction around it is rolled back.
-                    $media->getConnection()->afterCommit(fn () => $this->keepCollectionSizeLimit($model, $media));
+                    // A non-queued conversion failed after the file was stored, so the media was added.
+                    $this->keepCollectionSizeLimitAfterCommit($model, $media);
                 } else {
                     $this->discardMedia($model, $media);
                 }
@@ -750,10 +749,18 @@ class FileAdder
                     : dispatch($job);
             }
 
-            $this->keepCollectionSizeLimit($model, $media);
+            $this->keepCollectionSizeLimitAfterCommit($model, $media);
         } finally {
             $fileAdder->removeTemporaryFile();
         }
+    }
+
+    /**
+     * Removing media removes its files, which a rolled back transaction around the addition would not bring back.
+     */
+    protected function keepCollectionSizeLimitAfterCommit(HasMedia $model, Media $media): void
+    {
+        $media->getConnection()->afterCommit(fn () => $this->keepCollectionSizeLimit($model, $media));
     }
 
     protected function discardMedia(HasMedia $model, Media $media): void

@@ -328,6 +328,31 @@ test('a single file collection keeps its media when adding a media whose convers
         ->and($media->getPath())->toBeFile();
 });
 
+test('a single file collection keeps its media when adding a media is rolled back', function () {
+    $testModel = new class extends TestModelWithConversion
+    {
+        public function registerMediaCollections(): void
+        {
+            $this
+                ->addMediaCollection('images')
+                ->singleFile();
+        }
+    };
+
+    $model = $testModel::create(['name' => 'testmodel']);
+
+    $media = $model->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images');
+
+    expect(fn () => DB::transaction(function () use ($model) {
+        $model->addMedia($this->getTestJpg())->preservingOriginal()->usingFileName('new.jpg')->toMediaCollection('images');
+
+        throw new RuntimeException('rolled back');
+    }))->toThrow(RuntimeException::class, 'rolled back');
+
+    expect($model->fresh()->getMedia('images')->pluck('file_name')->all())->toBe(['test.jpg'])
+        ->and($media->getPath())->toBeFile();
+});
+
 test('if the only keeps latest method is specified it will delete all other media and will only keep the latest n ones', function () {
     $testModel = new class extends TestModelWithConversion
     {

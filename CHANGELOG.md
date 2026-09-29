@@ -44,7 +44,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - Responsive images are replaced only once the new set has been generated, so a failure keeps the previous set; the previous files are removed afterwards. Removing or renaming them no longer touches the images of conversions whose name starts with the same text, and deleting one responsive image keeps the others of its conversion.
 - Renamed responsive images are named through the file namer and are removed when the media is deleted.
 - `addMediaFromDisk` on the same disk keeps the source file when the copy fails, and sanitizes and names the file once.
-- A conversion that fails while the media is added still enforces the collection size limit (`singleFile()`), once a transaction around it is committed. A media whose file could not be written is not kept.
+- The collection size limit (`singleFile()`, `onlyKeepLatest()`) removes older media once a transaction around the addition is committed, so a rollback keeps them and their files. A conversion that fails while the media is added still enforces the limit. A media whose file could not be written is not kept.
 - `Media::copy()` and `move()` to a model that is saved afterwards add the media once the model is created, and remove their temporary copy.
 - Media conversions stored on the media with a single value (`['thumb' => ['format' => 'png']]`) or a named one name the file after that format; a quality stored that way applies to its responsive images.
 - `keepOriginalImageFormat()` keeps the format of avif images.
