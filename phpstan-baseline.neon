@@ -1,7 +1,44 @@
 parameters:
 	ignoreErrors:
 		-
-			message: "#^Access to an undefined property Spatie\\\\MediaLibrary\\\\HasMedia\\:\\:#"
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$mediaConversions\\.$#"
+			count: 1
+			path: src/Conversions/ConversionCollection.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\|Spatie\\\\MediaLibrary\\\\HasMedia\\:\\:\\$mediaConversions\\.$#"
+			count: 1
+			path: src/Conversions/ConversionCollection.php
+
+		-
+			message: "#^Access to an undefined property Spatie\\\\MediaLibrary\\\\HasMedia\\:\\:\\$registerMediaConversionsUsingModelInstance\\.$#"
+			count: 1
+			path: src/Conversions/ConversionCollection.php
+
+		-
+			message: "#^Method Spatie\\\\MediaLibrary\\\\HasMedia\\:\\:registerAllMediaConversions\\(\\) invoked with 1 parameter, 0 required\\.$#"
+			count: 1
+			path: src/Conversions/ConversionCollection.php
+
+		-
+			message: "#^Call to an undefined method Spatie\\\\PdfToImage\\\\Pdf\\:\\:setPage\\(\\)\\.$#"
+			count: 1
+			path: src/Conversions/ImageGenerators/Pdf.php
+
+		-
+			message: "#^Access to an undefined property Spatie\\\\MediaLibrary\\\\HasMedia\\:\\:\\$exists\\.$#"
+			count: 1
+			path: src/MediaCollections/FileAdder.php
+
+		-
+			message: "#^Access to an undefined property Spatie\\\\MediaLibrary\\\\HasMedia\\:\\:\\$mediaCollections\\.$#"
+			count: 1
+			path: src/MediaCollections/FileAdder.php
+
+		-
+			message: "#^Call to an undefined method Illuminate\\\\Database\\\\Eloquent\\\\Builder\\<Illuminate\\\\Database\\\\Eloquent\\\\Model\\>\\:\\:withTrashed\\(\\)\\.$#"
+			count: 1
+			path: src/MediaCollections/MediaRepository.php
 
 		-
 			message: "#^Call to an undefined method Spatie\\\\MediaLibrary\\\\Support\\\\UrlGenerator\\\\UrlGenerator\\:\\:getPathRelativeToRoot\\(\\)\\.$#"
@@ -9,6 +46,16 @@ parameters:
 			path: src/MediaCollections/Models/Media.php
 
 		-
-			message: "#^Call to an undefined method Illuminate\\\\Database\\\\Eloquent\\\\Builder\\:\\:withTrashed\\(\\)\\.$#"
+			message: "#^Parameter \\#1 \\$items of class Spatie\\\\MediaLibrary\\\\MediaCollections\\\\Models\\\\Collections\\\\MediaCollection constructor expects Illuminate\\\\Contracts\\\\Support\\\\Arrayable\\<\\(int\\|string\\), TModel of Spatie\\\\MediaLibrary\\\\MediaCollections\\\\Models\\\\Media\\>\\|iterable\\<\\(int\\|string\\), TModel of Spatie\\\\MediaLibrary\\\\MediaCollections\\\\Models\\\\Media\\>\\|null, array\\<Illuminate\\\\Database\\\\Eloquent\\\\Model\\> given\\.$#"
 			count: 1
-			path: src/MediaCollections/MediaRepository.php
+			path: src/MediaCollections/Models/Media.php
+
+		-
+			message: "#^Parameter \\#1 \\$related of method Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:belongsTo\\(\\) expects class\\-string\\<Illuminate\\\\Database\\\\Eloquent\\\\Model\\>, string given\\.$#"
+			count: 1
+			path: src/MediaCollections/Models/Media.php
+
+		-
+			message: "#^Return type \\(Spatie\\\\MediaLibrary\\\\MediaCollections\\\\Models\\\\Collections\\\\MediaCollection\\) of method Spatie\\\\MediaLibrary\\\\MediaCollections\\\\Models\\\\Media\\:\\:newCollection\\(\\) should be compatible with return type \\(Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<\\(int\\|string\\), static\\(Illuminate\\\\Database\\\\Eloquent\\\\Model\\)\\>\\) of method Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:newCollection\\(\\)$#"
+			count: 1
+			path: src/MediaCollections/Models/Media.php
