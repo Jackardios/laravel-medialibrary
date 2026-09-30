@@ -216,7 +216,7 @@ class FileManipulator
 
         try {
             foreach ($conversions as $conversion) {
-                (new PerformConversionAction())->execute($conversion, $media, $copiedOriginalFile);
+                (new PerformConversionAction)->execute($conversion, $media, $copiedOriginalFile);
 
                 $performedConversions++;
             }

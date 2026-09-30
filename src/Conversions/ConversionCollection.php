@@ -5,6 +5,7 @@ namespace Spatie\MediaLibrary\Conversions;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidConversion;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
@@ -27,7 +28,7 @@ class ConversionCollection extends Collection
 
     public static function createForMedia(Media $media): self
     {
-        return (new static())->setMedia($media);
+        return (new static)->setMedia($media);
     }
 
     public function setMedia(Media $media): self
@@ -69,8 +70,8 @@ class ConversionCollection extends Collection
             return;
         }
 
-        /** @var \Spatie\MediaLibrary\HasMedia $model */
-        $model = new $modelName();
+        /** @var HasMedia $model */
+        $model = new $modelName;
 
         // Flagged whenever the model opts in, even if this media has no owner loaded
         // right now: the same media may resolve one on a later call.

@@ -190,7 +190,7 @@ class CleanCommand extends Command
             throw DiskDoesNotExist::create($diskName);
         }
         $mediaClass = config('media-library.media_model');
-        $mediaInstance = new $mediaClass();
+        $mediaInstance = new $mediaClass;
         $keyName = $mediaInstance->getKeyName();
 
         $mediaIds = collect($this->mediaRepository->all()->pluck($keyName)->toArray());

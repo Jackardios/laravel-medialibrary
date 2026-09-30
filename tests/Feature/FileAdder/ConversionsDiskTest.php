@@ -1,5 +1,8 @@
 <?php
 
+use Spatie\MediaLibrary\MediaCollections\Filesystem;
+use Spatie\MediaLibrary\Support\FileRemover\DefaultFileRemover;
+
 it('can save conversions on a separate disk', function () {
     $media = $this->testModelWithConversion
         ->addMedia($this->getTestJpg())
@@ -78,7 +81,7 @@ test('Filesystem::removeResponsiveImages deletes responsive images stored on the
     $responsiveImagePath = $this->getTempDirectory("media2/{$media->id}/responsive-images/test___thumb_50_41.jpg");
     expect($responsiveImagePath)->toBeFile();
 
-    app(\Spatie\MediaLibrary\MediaCollections\Filesystem::class)->removeResponsiveImages($media, 'thumb');
+    app(Filesystem::class)->removeResponsiveImages($media, 'thumb');
 
     $this->assertFileDoesNotExist($responsiveImagePath);
 });
@@ -94,7 +97,7 @@ test('DefaultFileRemover::removeResponsiveImages deletes responsive images store
     $responsiveImagePath = $this->getTempDirectory("media2/{$media->id}/responsive-images/test___thumb_50_41.jpg");
     expect($responsiveImagePath)->toBeFile();
 
-    app(\Spatie\MediaLibrary\Support\FileRemover\DefaultFileRemover::class)->removeResponsiveImages($media, 'thumb');
+    app(DefaultFileRemover::class)->removeResponsiveImages($media, 'thumb');
 
     $this->assertFileDoesNotExist($responsiveImagePath);
 });

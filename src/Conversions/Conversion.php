@@ -4,12 +4,13 @@ namespace Spatie\MediaLibrary\Conversions;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Traits\Conditionable;
+use Spatie\Image\Drivers\ImageDriver;
 use Spatie\ImageOptimizer\OptimizerChainFactory;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\ResponsiveImages\WidthCalculator\WidthCalculator;
 use Spatie\MediaLibrary\Support\FileNamer\FileNamer;
 
-/** @mixin \Spatie\Image\Drivers\ImageDriver */
+/** @mixin ImageDriver */
 class Conversion
 {
     use Conditionable;
@@ -39,7 +40,7 @@ class Conversion
     ) {
         $optimizerChain = OptimizerChainFactory::create(config('media-library.image_optimizers'));
 
-        $this->manipulations = new Manipulations();
+        $this->manipulations = new Manipulations;
         $this->manipulations->optimize($optimizerChain)->format('jpg');
 
         $this->fileNamer = app(config('media-library.file_namer'));
@@ -106,7 +107,7 @@ class Conversion
 
     public function withoutManipulations(): self
     {
-        $this->manipulations = new Manipulations();
+        $this->manipulations = new Manipulations;
 
         return $this;
     }
@@ -153,7 +154,7 @@ class Conversion
 
     public function shouldBePerformedOn(string $collectionName): bool
     {
-        //if no collections were specified, perform conversion on all collections
+        // if no collections were specified, perform conversion on all collections
         if (! count($this->performOnCollections)) {
             return true;
         }

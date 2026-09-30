@@ -13,7 +13,7 @@ use Spatie\Image\Enums\FlipDirection;
 use Spatie\Image\Enums\Orientation;
 use Spatie\Image\Enums\Unit;
 
-/** @mixin \Spatie\Image\Drivers\ImageDriver */
+/** @mixin ImageDriver */
 class Manipulations
 {
     protected array $manipulations = [];
@@ -123,10 +123,7 @@ class Manipulations
     }
 
     /**
-     * @param array $parameters
-     * @param string $parameterName
-     * @param class-string $enum
-     * @return array
+     * @param  class-string  $enum
      */
     private function convertParameterToEnumIfExists(array &$parameters, string $parameterName, string $enum): array
     {
