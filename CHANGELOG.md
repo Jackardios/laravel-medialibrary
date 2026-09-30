@@ -2,7 +2,7 @@
 
 All notable changes to `jackardios/laravel-medialibrary` will be documented in this file. Entries before 1.0.0 are the releases of spatie/laravel-medialibrary.
 
-## 2.0.0 - unreleased
+## 2.0.0 - 2026-09-30
 
 2.0 is based on spatie/laravel-medialibrary **11.23.8** and includes every upstream change from 11.7.4 on (listed below this entry). [UPGRADING](UPGRADING.md) has the steps from 1.x.
 
