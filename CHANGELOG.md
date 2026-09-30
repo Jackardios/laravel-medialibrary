@@ -1,6 +1,20 @@
 # Changelog
 
-All notable changes to `laravel-medialibrary` will be documented in this file
+All notable changes to `jackardios/laravel-medialibrary` will be documented in this file. Entries before 1.0.0 are the releases of spatie/laravel-medialibrary.
+
+## 1.0.1 - 2026-10-01
+
+### Fixed
+
+- `media-library:clean --delete-orphaned` given a collection name no longer deletes the orphaned media of other collections, which it did on Laravel 11 (seen on 11.57). The orphan condition is now grouped in its own `where`.
+
+### Maintenance
+
+- CI of the 1.x line installs Laravel releases (Composer had chosen a dev branch over releases with security advisories), only checks the code style instead of committing fixes, and no longer commits to `main` when a release is published. The PHPStan baseline matches the current Larastan, and a test accepts the lower-case `charset=utf-8` Symfony now sends.
+
+## 1.0.0
+
+The first release of the fork: spatie/laravel-medialibrary 11.7.3 with the fork's changes — faster `media-library:regenerate` (one job per media, `--only-missing` trusting the database), the conversions disk used for regeneration, removal, mail attachments and urls, renamed responsive images, a memoized conversion collection, and casts of manipulation enums stored in the database. Requires PHP 8.2+ and Laravel 10 or 11.
 
 ## 11.7.3 - 2024-07-02
 
