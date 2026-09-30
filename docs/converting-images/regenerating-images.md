@@ -92,7 +92,7 @@ php artisan media-library:regenerate --eager-models
 > **Note**
 > `--eager-models` eager-loads the related model for every chunk of media. If your library contains media whose `model_type` points at a class that no longer exists, the eager load will fail the whole run. Leave it off (the default) for such libraries — without it, media with a missing model are simply skipped one by one.
 
-If you want to regenerate images starting at a specific id (inclusive), you can use the `--starting-from-id` option
+If you want to regenerate images starting at a specific id (inclusive), you can use the `--starting-from-id` option. A value that is not a media id makes the command fail.
 
 ```bash
 php artisan media-library:regenerate --starting-from-id=1

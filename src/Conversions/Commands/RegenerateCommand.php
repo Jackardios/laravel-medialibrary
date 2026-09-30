@@ -45,6 +45,15 @@ class RegenerateCommand extends Command
 
         $this->fileManipulator = $fileManipulator;
 
+        // Cast to 0, it would regenerate every media.
+        $startingFromId = $this->option('starting-from-id');
+
+        if ($startingFromId !== null && ! ctype_digit((string) $startingFromId)) {
+            $this->error("The --starting-from-id option has to be a media id, `{$startingFromId}` given.");
+
+            return self::FAILURE;
+        }
+
         if (! $this->confirmToProceed()) {
             return self::SUCCESS;
         }

@@ -932,3 +932,20 @@ class RegenerateTestModelWithDeferredAndQueuedConversions extends TestModel
         $this->addMediaConversion('queued')->width(20)->queued();
     }
 }
+
+it('refuses a starting id that is not a whole number', function (string $startingFromId) {
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestFilesDirectory('test.jpg'))
+        ->toMediaCollection('images');
+
+    $thumb = $media->getPath('thumb');
+    touch($thumb, time() - 5);
+    $createdAt = filemtime($thumb);
+
+    $this->artisan('media-library:regenerate', ['--starting-from-id' => $startingFromId])
+        ->expectsOutputToContain('--starting-from-id')
+        ->assertFailed();
+
+    clearstatcache();
+    expect(filemtime($thumb))->toBe($createdAt);
+})->with(['abc', '1a', '-1', '']);
