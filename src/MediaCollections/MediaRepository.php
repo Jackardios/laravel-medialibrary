@@ -123,11 +123,12 @@ class MediaRepository
 
     protected function orphansQuery(): Builder
     {
-        return $this->query()
-            ->whereDoesntHave(
-                'model',
-                fn (Builder $q) => $q->hasMacro('withTrashed') ? $q->withTrashed() : $q,
-            );
+        // Grouped: on a morph relation it becomes one `or` clause per model type, and a
+        // condition added later (the collection name) must apply to all of them.
+        return $this->query()->where(fn (Builder $query) => $query->whereDoesntHave(
+            'model',
+            fn (Builder $q) => $q->hasMacro('withTrashed') ? $q->withTrashed() : $q,
+        ));
     }
 
     protected function getDefaultFilterFunction(array $filters): Closure
