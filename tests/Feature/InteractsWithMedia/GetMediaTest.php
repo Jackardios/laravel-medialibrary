@@ -319,7 +319,7 @@ it('can get the default path to the first media in a collection if conversion no
     unlink($avatarThumbConversion);
     $this->testModelWithConversionQueued->getFirstMedia('avatar')->markAsConversionNotGenerated('avatar_thumb');
 
-    expect($this->testModelWithConversionQueued->getFirstMediaPath('avatar', 'avatar_thumb'))->toEqual($this->getMediaDirectory("{$media->id}/test.jpg"));
+    expect($this->makePathOsSafe($this->testModelWithConversionQueued->getFirstMediaPath('avatar', 'avatar_thumb')))->toEqual($this->makePathOsSafe($this->getMediaDirectory("{$media->id}/test.jpg")));
 });
 
 it('can get the correct path to the converted media in a collection if conversion is marked as generated', function () {

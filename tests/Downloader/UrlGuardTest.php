@@ -5,13 +5,17 @@ use Spatie\MediaLibrary\Downloaders\UrlGuard;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\InvalidUrl;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\UnreachableUrl;
 
+it('refuses a host that resolves to a private address in decimal', function () {
+    expect(fn () => (new UrlGuard)->addressFor('http://2130706433/image.jpg'))
+        ->toThrow(InvalidUrl::class, 'private or reserved address');
+})->skipOnWindows(); // Its resolver does not resolve decimal addresses, so the url is unreachable there.
+
 it('refuses a url whose host resolves to a private or reserved address', function (string $url) {
     expect(fn () => (new UrlGuard)->addressFor($url))
         ->toThrow(InvalidUrl::class, 'private or reserved address');
 })->with([
     'loopback' => 'http://127.0.0.1/image.jpg',
     'localhost' => 'http://localhost/image.jpg',
-    'loopback in decimal' => 'http://2130706433/image.jpg',
     'ipv6 loopback' => 'http://[::1]/image.jpg',
     'ipv4-mapped ipv6' => 'http://[::ffff:127.0.0.1]/image.jpg',
     'cloud metadata' => 'http://169.254.169.254/latest/meta-data',

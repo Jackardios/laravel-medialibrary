@@ -23,15 +23,15 @@ it('can save conversions on a separate disk', function () {
     $originalFilePath = $media->getPath();
 
     $this->assertEquals(
-        $this->getTempDirectory('media/1/test.jpg'),
-        $originalFilePath
+        $this->makePathOsSafe($this->getTempDirectory('media/1/test.jpg')),
+        $this->makePathOsSafe($originalFilePath)
     );
     expect($originalFilePath)->toBeFile();
 
     $conversionsFilePath = $media->getPath('thumb');
     $this->assertEquals(
-        $this->getTempDirectory('media2/1/conversions/test-thumb.jpg'),
-        $conversionsFilePath
+        $this->makePathOsSafe($this->getTempDirectory('media2/1/conversions/test-thumb.jpg')),
+        $this->makePathOsSafe($conversionsFilePath)
     );
     expect($conversionsFilePath)->toBeFile();
 });
@@ -68,8 +68,8 @@ it('will store the conversion on the disk specified in on the media collection',
 
     $conversionsFilePath = $media->getPath('thumb');
     $this->assertEquals(
-        $this->getTempDirectory('media2/1/conversions/test-thumb.jpg'),
-        $conversionsFilePath
+        $this->makePathOsSafe($this->getTempDirectory('media2/1/conversions/test-thumb.jpg')),
+        $this->makePathOsSafe($conversionsFilePath)
     );
     expect($conversionsFilePath)->toBeFile();
 });
@@ -86,8 +86,8 @@ it('uses the globally configured conversions disk when no other disk is specifie
 
     expect($media->getPath('thumb'))->toBeFile();
     $this->assertEquals(
-        $this->getTempDirectory('media2/1/conversions/test-thumb.jpg'),
-        $media->getPath('thumb')
+        $this->makePathOsSafe($this->getTempDirectory('media2/1/conversions/test-thumb.jpg')),
+        $this->makePathOsSafe($media->getPath('thumb'))
     );
 });
 
@@ -172,7 +172,7 @@ it('uses the original disk for conversions of media without a conversions disk',
 
     app(FileManipulator::class)->regenerateDerivedFiles($media);
 
-    expect($media->getPath('thumb'))->toBe($this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg"))
+    expect($this->makePathOsSafe($media->getPath('thumb')))->toBe($this->makePathOsSafe($this->getMediaDirectory("{$media->id}/conversions/test-thumb.jpg")))
         ->and($media->getPath('thumb'))->toBeFile()
         ->and($this->getTempDirectory("media2/{$media->id}"))->not->toBeDirectory();
 
