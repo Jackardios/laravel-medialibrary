@@ -28,13 +28,17 @@ it('will not create a derived version for non registered collections', function 
     $this->assertFileDoesNotExist($this->getMediaDirectory($media->id.'/conversions/test-thumb.jpg'));
 });
 
-it('will create a derived version for an image without an extension', function () {
+it('will create a derived version for an image without an extension', function (string $driver) {
+    config()->set('media-library.image_driver', $driver);
+
     $media = $this->testModelWithConversion
         ->addMedia($this->getTestFilesDirectory('image'))
+        ->withResponsiveImages()
         ->toMediaCollection('images');
 
     $this->assertFileExists($this->getMediaDirectory($media->id.'/conversions/image-thumb.jpg'));
-});
+    expect($media->fresh()->responsive_images['media_library_original']['urls'] ?? [])->not->toBeEmpty();
+})->with(['gd', 'imagick']);
 
 it('can create a derived version for an image keeping the original format', function () {
     $media = $this->testModelWithConversion

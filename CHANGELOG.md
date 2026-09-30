@@ -62,6 +62,7 @@ All notable changes to `jackardios/laravel-medialibrary` will be documented in t
 - Every file in a media zip gets a unique name, also when a file is already named like a numbered duplicate, after the zip has replaced the characters it does not allow in the name and in `zip_filename_prefix`, and regardless of case. A duplicate in a directory is numbered in that directory.
 - The temporary directories of responsive image generation and `Media::copy()` are removed when they fail.
 - Conversion existence checks work with Windows separators and roots with a trailing slash.
+- Responsive images of a media without an extension are generated, as jpg like its conversions, and its conversions work on Windows.
 - `media-library:regenerate --starting-from-id` refuses a value that is not a media id (such as `abc`) instead of regenerating every media.
 - `media-library:clean` keeps the directories of soft deleted media, which keep their files until they are force deleted.
 

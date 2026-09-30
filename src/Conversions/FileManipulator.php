@@ -96,7 +96,7 @@ class FileManipulator
         try {
             $copiedOriginalFile = app(Filesystem::class)->copyFromMediaLibrary(
                 $media,
-                $temporaryDirectory->path(Str::random(32).'.'.$media->extension)
+                $temporaryDirectory->path(Str::random(32).'.'.($media->extension ?: 'jpg'))
             );
 
             // Conversions and responsive images are independent: a failure in one must not
@@ -217,9 +217,11 @@ class FileManipulator
 
         try {
             try {
+                // A name without an extension would be taken for a directory. Like its conversions, a media
+                // without an extension is read as an image and saved as jpg.
                 $copiedOriginalFile = app(Filesystem::class)->copyFromMediaLibrary(
                     $media,
-                    $temporaryDirectory->path(Str::random(32).'.'.$media->extension)
+                    $temporaryDirectory->path(Str::random(32).'.'.($media->extension ?: 'jpg'))
                 );
             } catch (FileDoesNotExist) {
                 // Without an original there is nothing to convert, e.g. when regenerating a

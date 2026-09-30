@@ -41,7 +41,7 @@ class ResponsiveImageGenerator
             // which downloads it once for the conversions) can pass it in to avoid a second download.
             $baseImage ??= app(Filesystem::class)->copyFromMediaLibrary(
                 $media,
-                $temporaryDirectory->path(Str::random(16).'.'.$media->extension)
+                $temporaryDirectory->path(Str::random(16).'.'.($media->extension ?: 'jpg'))
             );
 
             $this->replaceResponsiveImages($media, 'media_library_original', function () use ($media, $baseImage, $temporaryDirectory) {
