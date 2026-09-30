@@ -80,12 +80,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # MinIO no longer publishes images; this one creates the bucket with a download policy itself.
+      # The bucket is ready once a missing file in it is not found rather than forbidden.
       - name: Start MinIO
         run: |
-          docker run -d --name minio -p 9000:9000 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin minio/minio server /data
-          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9000/minio/health/live && break; sleep 1; done
-          docker run --rm --network host --entrypoint sh minio/mc -c \
-            "mc alias set local http://127.0.0.1:9000 minioadmin minioadmin && mc mb local/mlib-tests && mc anonymous set download local/mlib-tests"
+          docker run -d --name minio -p 9000:9000 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+            -e MINIO_DEFAULT_BUCKETS=mlib-tests:download bitnamilegacy/minio:2025.7.23-debian-12-r5
+          for _ in $(seq 1 60); do
+            [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9000/mlib-tests/missing)" = 404 ] && exit 0
+            sleep 1
+          done
+          docker logs minio
+          exit 1
 
       - name: Install ghostscript
         run: sudo apt-get update && sudo apt-get install -y ghostscript
@@ -207,12 +213,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Install ffmpeg, ghostscript and the image optimizers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg ghostscript jpegoptim optipng pngquant gifsicle webp
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.6'
           extensions: dom, curl, libxml, mbstring, zip, pdo, sqlite, pdo_sqlite, bcmath, intl, gd, exif, iconv, fileinfo
           coverage: none
+
+      - name: Allow ImageMagick to read PDFs
+        run: sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-*/policy.xml
 
       - name: Install dependencies
         run: composer update --prefer-stable --prefer-dist --no-interaction --ignore-platform-req=php+ --ignore-platform-req=ext-imagick
@@ -242,12 +256,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Install ffmpeg, ghostscript and the image optimizers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg ghostscript jpegoptim optipng pngquant gifsicle webp
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
           extensions: ${{ env.EXTENSIONS }}
           coverage: none
+
+      - name: Allow ImageMagick to read PDFs
+        run: sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-*/policy.xml
 
       # orchestra/testbench has no branch for the next Laravel version, testbench-core has.
       - name: Install dependencies
