@@ -5,6 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -383,4 +384,78 @@ it('keeps the files of a soft deleted media until it is force deleted', function
 
     expect($media->getPath())->not->toBeFile()
         ->and($this->getMediaDirectory($media->id))->not->toBeDirectory();
+});
+
+it('removes the files of a media deleted in a transaction once it is committed, when asked to', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images');
+
+    DB::transaction(function () use ($media) {
+        Media::removingFilesAfterCommit(fn () => $media->delete());
+
+        expect(Media::find($media->id))->toBeNull()
+            ->and($media->getPath())->toBeFile();
+    });
+
+    expect($media->getPath())->not->toBeFile();
+});
+
+it('brings back a media with its files when the transaction it was deleted in is rolled back', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images');
+
+    expect(fn () => DB::transaction(function () use ($media) {
+        Media::removingFilesAfterCommit(fn () => $media->delete());
+
+        throw new RuntimeException('rolled back');
+    }))->toThrow(RuntimeException::class, 'rolled back');
+
+    expect(Media::find($media->id))->not->toBeNull()
+        ->and($media->getPath())->toBeFile();
+});
+
+it('reports a failure to remove the files after the commit instead of throwing it', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images');
+
+    config()->set('media-library.file_remover_class', ThrowingFileRemover::class);
+
+    Exceptions::fake();
+
+    DB::transaction(fn () => Media::removingFilesAfterCommit(fn () => $media->delete()));
+
+    expect(Media::find($media->id))->toBeNull();
+
+    Exceptions::assertReported(fn (RuntimeException $exception) => $exception->getMessage() === 'the disk is gone');
+});
+
+it('removes the files at once and throws a failure to do so when there is no transaction to wait for', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images');
+    $failing = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images');
+
+    Media::removingFilesAfterCommit(fn () => $media->delete());
+
+    expect($media->getPath())->not->toBeFile();
+
+    config()->set('media-library.file_remover_class', ThrowingFileRemover::class);
+
+    expect(fn () => Media::removingFilesAfterCommit(fn () => $failing->delete()))
+        ->toThrow(RuntimeException::class, 'the disk is gone');
+});
+
+class ThrowingFileRemover extends DefaultFileRemover
+{
+    public function removeAllFiles(Media $media): void
+    {
+        throw new RuntimeException('the disk is gone');
+    }
+}
+
+it('removes the files after the commit of a media whose model cannot be loaded', function () {
+    $media = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('images');
+
+    Media::whereKey($media->id)->toBase()->update(['model_type' => 'App\\Models\\Gone']);
+    $media = Media::find($media->id);
+
+    DB::transaction(fn () => Media::removingFilesAfterCommit(fn () => $media->delete()));
+
+    expect(Media::find($media->id))->toBeNull()
+        ->and($this->getMediaDirectory("{$media->id}/test.jpg"))->not->toBeFile();
 });

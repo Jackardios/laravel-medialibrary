@@ -1,8 +1,13 @@
 <?php
 
+use FFMpeg\FFMpeg;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Spatie\MediaLibrary\Conversions\ImageGenerators\Pdf;
+use Spatie\MediaLibrary\Conversions\ImageGenerators\Svg;
+use Spatie\MediaLibrary\Conversions\ImageGenerators\Video;
 use Spatie\MediaLibrary\Tests\TestCase;
+use Symfony\Component\Process\ExecutableFinder;
 
 uses(TestCase::class)->in(__DIR__);
 
@@ -32,6 +37,47 @@ function canTestS3(): bool
         && ! empty(getenv('AWS_SECRET_ACCESS_KEY'))
         && ! empty(getenv('AWS_DEFAULT_REGION'))
         && ! empty(getenv('AWS_BUCKET'));
+}
+
+function canTestImagick(): bool
+{
+    return extension_loaded('imagick');
+}
+
+/*
+ * The video generator needs the ffmpeg and ffprobe binaries, not only the php-ffmpeg package.
+ */
+function canTestVideos(): bool
+{
+    static $canTestVideos = null;
+
+    if (! (new Video)->requirementsAreInstalled()) {
+        return false;
+    }
+
+    return $canTestVideos ??= rescue(fn () => (bool) FFMpeg::create([
+        'ffmpeg.binaries' => config('media-library.ffmpeg_path'),
+        'ffprobe.binaries' => config('media-library.ffprobe_path'),
+    ]), false, false);
+}
+
+/*
+ * Imagick reads a pdf through Ghostscript.
+ */
+function canTestPdfs(): bool
+{
+    if (! (new Pdf)->requirementsAreInstalled()) {
+        return false;
+    }
+
+    $finder = new ExecutableFinder;
+
+    return collect(['gs', 'gswin64c', 'gswin32c'])->contains(fn (string $binary) => $finder->find($binary) !== null);
+}
+
+function canTestSvgs(): bool
+{
+    return (new Svg)->requirementsAreInstalled();
 }
 
 function getS3BaseTestDirectory(): string

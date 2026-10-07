@@ -46,7 +46,7 @@ The fork uses the same namespace as `spatie/laravel-medialibrary` and declares a
 ## How the fork differs from spatie/laravel-medialibrary
 
 - **Safer url downloads.** `addMediaFromUrl` refuses urls that resolve to private or reserved addresses (localhost, the local network, cloud metadata services), checks every redirect, connects to the address it checked and stops downloading at `max_file_size`. Internal hosts can be trusted in the config. See [using a custom media downloader](docs/advanced-usage/using-a-custom-media-downloader.md).
-- **Safer file names.** Besides upstream's extension blocklist, `.user.ini` and `web.config` are refused, and the default sanitizer also replaces the characters Windows does not allow and renames reserved device names such as `CON`.
+- **Safer file names.** Besides upstream's extension blocklist, `.user.ini` and `web.config` are refused, and the default sanitizer also replaces the characters Windows does not allow and renames reserved device names such as `CON`. `Spatie\MediaLibrary\Support\FileName` lets an application check or sanitize a name itself.
 - **Separate conversions disk done right.** Urls, srcsets, regeneration, existence checks, renames, moves, mail attachments and deletion all use the conversions disk.
 - **Responsive images kept consistent.** They are replaced only once a new set has been generated, renamed with the media, and removed exactly.
 - **`media-library:regenerate`** behaves as upstream's by default and offers the fork's fast paths: `--queue-all` queues one job per media that downloads the original once for all conversions and responsive images, and `--trust-database` lets `--only-missing` read the `generated_conversions` column instead of the disk.
@@ -71,7 +71,7 @@ The S3 tests run against any S3-compatible server when `AWS_ACCESS_KEY_ID`, `AWS
 
 ## Security
 
-If you discover a security issue, please report it [privately on GitHub](https://github.com/jackardios/laravel-medialibrary/security/advisories/new) instead of using the issue tracker.
+If you discover a security issue, please do not open a public issue or pull request for it. Report it [privately on GitHub](https://github.com/jackardios/laravel-medialibrary/security/advisories/new) or, when that form is not available, by mail to [jackardios@gmail.com](mailto:jackardios@gmail.com).
 
 ## Credits
 

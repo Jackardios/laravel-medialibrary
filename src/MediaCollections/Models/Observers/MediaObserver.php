@@ -63,6 +63,16 @@ class MediaObserver
         /** @var Filesystem $filesystem */
         $filesystem = app(Filesystem::class);
 
-        $filesystem->removeAllFiles($media);
+        if (! $media->shouldRemoveFilesAfterCommit() || $media->getConnection()->transactionLevel() === 0) {
+            $filesystem->removeAllFiles($media);
+
+            return;
+        }
+
+        // A path generator may read the model of the media, which can be gone once the transaction is committed.
+        rescue(fn () => $media->loadMissing('model'), report: false);
+
+        // Not thrown: the transaction is committed by then, and the caller would take it for a failed one.
+        $media->getConnection()->afterCommit(fn () => rescue(fn () => $filesystem->removeAllFiles($media)));
     }
 }

@@ -2,6 +2,32 @@
 
 Because there are many breaking changes an upgrade is not that easy. There are many edge cases this guide does not cover. We accept PRs to improve this guide.
 
+## From jackardios/laravel-medialibrary 2.0.0 to 2.1
+
+No steps are needed for most applications. Check these changes:
+
+### Collection size limits
+
+- **The limit is kept at once, not at the commit.** 2.0.0 enforced the limit of a `singleFile()` / `onlyKeepLatest()` collection only once a transaction around the addition was committed. Until then the collection still held the media it should have dropped, and several additions in one transaction kept the wrong media. 2.1 deletes the media that no longer fits right away, as 1.x did. Code that read the replaced media between the addition and the commit now gets the new one.
+- **Files wait for the commit.** Inside a transaction the files of the media that no longer fits are removed once it is committed, so a rollback brings back the media together with its files. A failure to remove them after the commit is reported (`report()`), not thrown; without a transaction it is thrown, as before. With transactions of two database connections open at once, the files follow the innermost open transaction of either connection, like every after-commit callback in Laravel.
+- **The `deleting` / `deleted` events of the replaced media fire inside the transaction**, where 2.0.0 fired them after the commit. A rollback brings back the row, but not what a listener did outside the database (a search index, a CDN purge). Do such work after the commit if it has to follow the transaction.
+- **A custom media observer** (`media_observer`) that removes the files in `deleted()` itself, without calling the package's `MediaObserver::deleted()`, still removes them right away and loses them on a rollback.
+- **A subclass of `FileAdder`:** `keepCollectionSizeLimitAfterCommit()` is deprecated and keeps the limit at once; override `keepCollectionSizeLimit()` instead.
+
+### File names
+
+- The default sanitizer replaces every unicode space (such as a no-break space) with `-`, not only the plain one, and strips the ones a name ends with. Existing media keep their names, but `Media::copy()` and `Media::move()` sanitize the name again: the copy of `photo<no-break space>1.jpg` is named `photo-1.jpg`.
+- Renaming a media, and the name a custom sanitizer returns, are checked more strictly. A name with a control or format character (a line break, a zero width joiner) or invalid utf-8 throws `FileNameNotAllowed`; such a name was never stored, 2.0.0 failed later with Flysystem's `CorruptedPathDetected`. The blocklist and allow-list ignore the unicode spaces a name ends with, as they ignore dots and plain spaces: `shell.php<no-break space>` is refused, 2.0.0 accepted it.
+- The messages of `FileNameNotAllowed` are reworded. The exception class is unchanged.
+
+### Urls
+
+- Urls of a scoped disk (`'driver' => 'scoped'`) are percent-encoded the way the disk it scopes needs, and the directory of responsive images that a custom path generator makes is percent-encoded like the rest of the path. These urls differ from 2.0.0 when the path has characters that need encoding.
+
+### Cleaning
+
+- `media-library:clean` keeps the directories of media that a global scope of the media model hides (2.0.0 removed them as orphaned).
+
 ## From jackardios/laravel-medialibrary 1.x to 2.0
 
 2.0 brings the fork up to spatie/laravel-medialibrary 11.23.8, so it also contains every upstream change since 11.7.3. The [changelog](CHANGELOG.md) lists them.
@@ -19,10 +45,11 @@ Because there are many breaking changes an upgrade is not that easy. There are m
 ### Adding media
 
 - **Urls on private networks.** `addMediaFromUrl` throws `InvalidUrl` for a url whose host, or a host it redirects to, resolves to a private or reserved address, and for a host written with non-ascii characters or percent-encoding (write it in punycode, `xn--...`). If you download from internal hosts, list them in `media_downloader_trusted_hosts` (wildcards allowed), or set `MEDIA_DOWNLOADER_BLOCKS_PRIVATE_NETWORKS=false` when every url is trusted. A download bigger than `max_file_size` now stops with `FileIsTooBig` while downloading. The `HttpFacadeDownloader` downloads a checked url without a proxy (it ignores `HTTP_PROXY` and the like); list a host in `media_downloader_trusted_hosts` if it can only be reached through your proxy. Without the curl extension it throws `FunctionalityNotAvailable` for a checked host. Tests using `Http::fake()` with the `HttpFacadeDownloader` are not affected. A custom downloader has to protect itself; it can use `Spatie\MediaLibrary\Downloaders\UrlGuard`.
-- **Refused file names.** File names with a dangerous segment (`.php`, `.phtml`, `.phar`, `.htaccess`, `.cgi`, `.asp`, `.jsp`, ... anywhere in the name), `.user.ini` and `web.config` throw `FileNameNotAllowed`, also when your own sanitizer (`sanitizingFileName()`) or file namer made the name, and when a media is renamed (`$media->file_name = ...`). A name that leaves its directory (`..`, a leading `/`, a backslash) or names a Windows drive or data stream (`:`) is refused the same way, and the checks ignore the dots and spaces Windows drops from the end of a name (`shell.php.`); `other/file.jpg` is still allowed. Validate uploads in your application to answer with a validation error instead of a server error. `allowed_extensions` / `disallowed_extensions` in the config adjust the list.
-- **Sanitized file names.** The default sanitizer also replaces `: * ? " < > |` with `-`, strips trailing dots and spaces and prefixes reserved Windows names (`CON`, `NUL`, `COM1`, ...) with `_`. New media may therefore get different file names than before; existing media keep theirs. Use `sanitizingFileName()` to keep your own rules; the blocklist still applies to its result.
+- **Refused file names.** File names with a dangerous segment (`.php`, `.phtml`, `.phar`, `.htaccess`, `.cgi`, `.asp`, `.jsp`, ... anywhere in the name), `.user.ini` and `web.config` throw `FileNameNotAllowed`, also when your own sanitizer (`sanitizingFileName()`) or file namer made the name, and when a media is renamed (`$media->file_name = ...`). A name that leaves its directory (`..`, a leading `/`, a backslash) or names a Windows drive or data stream (`:`) is refused the same way, and the checks ignore the dots and spaces Windows drops from the end of a name (`shell.php.`); `other/file.jpg` is still allowed. Validate uploads and renames in your application to answer with a validation error instead of a server error: since 2.1 `Spatie\MediaLibrary\Support\FileName::isAllowed($fileName)` tells whether a media can be given a name, `FileName::guard($fileName)` throws `FileNameNotAllowed` with the reason, and `FileName::sanitize($fileName)` returns the name the default sanitizer makes (see [retrieving media](docs/basic-usage/retrieving-media.md)). If your application copied the sanitizer of 1.x to rename media, replace the copy with `FileName::sanitize()`. `allowed_extensions` / `disallowed_extensions` in the config adjust the list.
+- **Sanitized file names.** The default sanitizer also replaces `: * ? " < > |` and, since 2.1, every unicode space with `-`, strips trailing dots and spaces and prefixes reserved Windows names (`CON`, `NUL`, `COM1`, ...) with `_`. New media may therefore get different file names than before; existing media keep theirs. Use `sanitizingFileName()` to keep your own rules; the blocklist still applies to its result.
 - Files from urls without an extension get the usual extension of their type (`jpg`, not `jpeg`).
 - `updateMedia()` throws `MediaCannotBeUpdated` when an item belongs to another model.
+- **Collection size limits.** Adding to a `singleFile()` / `onlyKeepLatest()` collection deletes the media that no longer fits right away, as in 1.x. Inside a database transaction its files are removed once the transaction is committed, so a rollback keeps the older media and its files (1.x lost the files). 2.0.0 postponed the whole limit to the commit, which kept the wrong media when a collection got several media in one transaction; use 2.1.
 
 ### Regenerating
 
@@ -35,17 +62,24 @@ Because there are many breaking changes an upgrade is not that easy. There are m
 ### Behaviour you may rely on
 
 - `toResponse()` / `toInlineResponse()` of a missing file throw `FileDoesNotExist` before sending; `Media::copy()` and `copyFromMediaLibrary()` throw `FileDoesNotExist` when the original is missing.
+- **Missing originals are skipped.** Conversions and responsive images of a media whose original is missing from its disk are skipped without an exception, where 1.x failed. `media-library:regenerate` and the conversion jobs therefore succeed for such media and generate nothing. To find them, check `Storage::disk($media->disk)->exists($media->getPathRelativeToRoot())`.
+- **Copying or moving media added under 1.x.** `Media::copy()` and `Media::move()` name the copy through the file adder, so a media whose stored name is refused now (`report.pl.jpg`, `my.stm.jpg`) throws `FileNameNotAllowed`. Pass another name as the `$fileName` argument, or adjust `disallowed_extensions`.
+- **`conversions_disk` falls back to `disk`.** `$media->conversions_disk` returns the media's `disk` when the column is empty, also in `toArray()` and json. `$media->getRawOriginal('conversions_disk')` is the stored value.
 - A conversion is sent and attached under its own file name and mime type.
 - Renaming a media throws `MediaCannotBeUpdated` when its file cannot be moved.
 - `Media::move()` to a model that is not saved yet throws `MediaCannotBeUpdated`. Save the model first.
 - The values of an image tag's extra attributes are escaped. Pass plain values, not HTML.
-- Urls of disks with a configured `url` percent-encode the file name. Urls of media without `updated_at` have no `?v=` version.
+- **Urls are percent-encoded.** Urls of `local` disks and of disks with a configured `url` (S3 behind a CDN, R2, ...) percent-encode every segment of the path: the file name and the directories your path generator makes (`my photo.jpg` becomes `my%20photo.jpg`, `50%.jpg` becomes `50%25.jpg`). 1.x returned the path as it was. `getPath()` and `getPathRelativeToRoot()` are unchanged, and urls stored in your content keep working, as browsers encode them the same way. Decode a url (`rawurldecode()`) before comparing it with a stored path or name. Urls of media without `updated_at` have no `?v=` version.
 - `ResponsiveImagesGeneratedEvent` and `ConversionHasBeenCompletedEvent` fire once the result is saved.
-- The responsive images job, like the conversion jobs, is queued after the database commit when `queue_conversions_after_database_commit` is on.
+- **Jobs wait for the commit.** `queue_conversions_after_database_commit` is new and on by default: the conversion jobs and the responsive images job dispatched inside a database transaction are queued once it is committed. That includes the `sync` queue connection, which 1.x ran at once: inside the transaction `hasGeneratedConversion()` is `false` and the files of queued conversions do not exist yet. Set `QUEUE_CONVERSIONS_AFTER_DB_COMMIT=false` to dispatch them at once again.
 - The `MediaRepository` getters return a `LazyCollection` (upstream 11.7.6).
 - Deleting media removes the files of the conversions that are registered; files of conversions you removed from your code stay on the disk.
 - `media-library:clean` also removes unknown directories on every disk the media table uses. Check its dry run (`--dry-run`) before running it on a disk that holds other files.
 - A conversion collection is kept for the last 16 media it was built for, while their attributes are unchanged. If you change config (such as `file_namer`) at runtime, use fresh media instances.
+
+### Going back to 1.x
+
+- Let the queue drain before you deploy 2.0, and again before you go back to 1.x. A `PerformConversionsJob` that 2.0 serialized fails on 1.x with `Typed property Spatie\MediaLibrary\Conversions\Conversion::$fileNamer must not be accessed before initialization`.
 
 ### Extending the package
 

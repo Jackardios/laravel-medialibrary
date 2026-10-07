@@ -250,9 +250,9 @@ class CleanCommand extends Command
     {
         $usedDirectoriesByDisk = [];
 
-        // A soft deleted media keeps its files until it is force deleted.
-        $query = $this->mediaRepository->queryAll();
-        $query = $query->hasMacro('withTrashed') ? $query->withTrashed() : $query; // @phpstan-ignore method.notFound
+        // Every media row keeps its directories, also one that a global scope of the media model hides:
+        // a soft deleted media keeps its files until it is force deleted, and so does the media of another tenant.
+        $query = $this->mediaRepository->queryAll()->withoutGlobalScopes();
 
         $query->cursor()->each(function (Media $media) use (&$usedDirectoriesByDisk, $prefix): void {
             $pathGenerator = PathGeneratorFactory::create($media);

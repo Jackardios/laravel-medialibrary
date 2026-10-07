@@ -2,6 +2,37 @@
 
 All notable changes to `jackardios/laravel-medialibrary` will be documented in this file. Entries before 1.0.0 are the releases of spatie/laravel-medialibrary.
 
+## 2.1.0 - unreleased
+
+[UPGRADING](UPGRADING.md) lists what changes for an application on 2.0.0, and has several additions to the steps from 1.x.
+
+### Fixed
+
+- The collection size limit (`singleFile()`, `onlyKeepLatest()`) is kept as soon as a media is added again. 2.0.0 waited for the commit of a transaction around the addition, which kept the wrong media when a collection got several media in one transaction, showed the replaced media until the commit, and made the commit throw when the model was deleted in the same transaction. Inside a transaction only the files of the media that no longer fits wait for the commit, so a rollback still keeps the older media and its files.
+- The default file name sanitizer replaces every unicode space separator with `-`, such as the no-break spaces in the names of macOS screenshots (upstream 11.23.9), and strips the ones a name ends with.
+- A file name with a control or format character, or invalid utf-8, throws `FileNameNotAllowed` instead of failing in the filesystem. The blocklist and allow-list ignore the unicode spaces a name ends with, so `shell.php` followed by a no-break space is refused.
+- `FileNameNotAllowed` no longer says that a name "was sanitized" when it was checked as it is (a rename), names the character it refuses (`:`, `\`) instead of saying that the name leaves its directory, and says when an extension is refused by `allowed_extensions`.
+- `media-library:clean` keeps the directories of media that a global scope of the media model hides.
+- Urls of a scoped disk (`'driver' => 'scoped'`) are percent-encoded the way the disk it scopes needs, and so is the directory of responsive images that a custom path generator makes.
+
+### Added
+
+- `Spatie\MediaLibrary\Support\FileName`: `isAllowed()` and `guard()` tell whether a media can be given a file name, `sanitize()` returns the name the default sanitizer makes. Use them to validate a name before adding or renaming media.
+- `Media::removingFilesAfterCommit($callback)`: media deleted in the callback lose their files only once the open database transactions are committed.
+
+### Deprecated
+
+- `FileAdder::keepCollectionSizeLimitAfterCommit()` (protected). It keeps the limit at once; override `keepCollectionSizeLimit()` instead.
+
+### Documentation
+
+- UPGRADING describes what was missing for the upgrade from 1.x: urls are percent-encoded in every path segment and on local disks, jobs wait for the commit also on the `sync` connection, missing originals are skipped, `conversions_disk` falls back to `disk`, `copy()` / `move()` refuse stored names that are no longer allowed, and the queue has to drain before going back to 1.x.
+- The README gives a mail address for security reports.
+
+### Maintenance
+
+- Tests that need ffmpeg, Imagick or Ghostscript are skipped where these are not installed, as on the Windows job.
+
 ## 2.0.0 - 2026-09-30
 
 2.0 is based on spatie/laravel-medialibrary **11.23.8** and includes every upstream change from 11.7.4 on (listed below this entry). [UPGRADING](UPGRADING.md) has the steps from 1.x.

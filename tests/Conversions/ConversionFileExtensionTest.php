@@ -23,7 +23,7 @@ it('always defaults to jpg when the original file is not an image', function () 
 
     expect($media->getUrl('thumb'))->toHaveExtension('jpg');
     expect($media->getUrl('keep_original_format'))->toHaveExtension('jpg');
-});
+})->skip(fn () => ! canTestVideos(), 'ffmpeg and ffprobe are not available.');
 
 it('actually encodes as the original format when the extension is uppercase', function () {
     $media = $this->testModelWithConversion->addMedia($this->getUppercaseExtensionTestPng())->toMediaCollection();

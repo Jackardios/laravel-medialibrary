@@ -73,17 +73,30 @@ abstract class BaseUrlGenerator implements UrlGenerator
 
     protected function getUrlEncodedPathRelativeToRoot(): string
     {
-        $diskConfig = config("filesystems.disks.{$this->getDiskName()}");
+        return $this->urlEncodePathForDisk($this->getPathRelativeToRoot(), $this->getDiskName());
+    }
+
+    /**
+     * Encodes every segment of a path that the disk puts in a url as it is.
+     */
+    protected function urlEncodePathForDisk(string $path, string $diskName): string
+    {
+        $diskConfig = config("filesystems.disks.{$diskName}");
+
+        // A scoped disk builds its urls the way the disk it scopes does.
+        while (($diskConfig['driver'] ?? null) === 'scoped') {
+            $parent = $diskConfig['disk'] ?? null;
+
+            $diskConfig = is_string($parent) ? config("filesystems.disks.{$parent}") : $parent;
+        }
 
         // Laravel appends the path as is to local disks and to any disk with a configured `url`
         // (e.g. S3 behind a CDN). Without one, the S3 client builds and encodes the url itself.
         if (($diskConfig['driver'] ?? null) !== 'local' && empty($diskConfig['url'])) {
-            return $this->getPathRelativeToRoot();
+            return $path;
         }
 
-        $segments = explode('/', $this->getPathRelativeToRoot());
-
-        return implode('/', array_map(rawurlencode(...), $segments));
+        return implode('/', array_map(rawurlencode(...), explode('/', $path)));
     }
 
     public function versionUrl(string $path = ''): string

@@ -6,7 +6,7 @@ use Spatie\MediaLibrary\Conversions\ImageGenerators\Video;
 it('can convert a video', function () {
     $imageGenerator = new Video;
 
-    if (! $imageGenerator->requirementsAreInstalled()) {
+    if (! canTestVideos()) {
         $this->markTestSkipped('Skipping video test because requirements to run it are not met');
     }
 

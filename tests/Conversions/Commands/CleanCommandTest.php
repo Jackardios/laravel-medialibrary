@@ -671,3 +671,27 @@ it('keeps the directory of a soft deleted media', function () {
 
     expect($media->getPath())->toBeFile();
 });
+
+class CleanTestScopedMedia extends Media
+{
+    protected static function booted(): void
+    {
+        static::addGlobalScope('visible', fn ($query) => $query->where('collection_name', '!=', 'hidden'));
+    }
+}
+
+it('keeps the directory of a media that a global scope of the media model hides', function () {
+    config()->set('media-library.media_model', CleanTestScopedMedia::class);
+    (new MediaLibraryServiceProvider(app()))->register()->boot();
+
+    $hidden = $this->testModel->addMedia($this->getTestJpg())->preservingOriginal()->toMediaCollection('hidden');
+    $orphanedDirectory = $this->getMediaDirectory('orphaned');
+    mkdir($orphanedDirectory);
+
+    expect(CleanTestScopedMedia::find($hidden->id))->toBeNull();
+
+    $this->artisan('media-library:clean')->assertSuccessful();
+
+    expect($hidden->getPath())->toBeFile()
+        ->and($orphanedDirectory)->not->toBeDirectory();
+});

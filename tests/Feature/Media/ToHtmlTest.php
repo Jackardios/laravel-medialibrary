@@ -84,7 +84,7 @@ it('can render pdf thumbnail as an image', function () {
         "<img src=\"/media/{$media->id}/conversions/test-thumb.jpg\" alt=\"test\">",
         $media->img('thumb'),
     );
-});
+})->skip(fn () => ! canTestPdfs(), 'Imagick, spatie/pdf-to-image or Ghostscript is not available.');
 
 it('can render itself with responsive images and a placeholder', function () {
     $media = $this->testModelWithConversion

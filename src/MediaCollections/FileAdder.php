@@ -19,6 +19,7 @@ use Spatie\MediaLibrary\MediaCollections\File as PendingFile;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\ResponsiveImages\Jobs\GenerateResponsiveImagesJob;
 use Spatie\MediaLibrary\Support\File;
+use Spatie\MediaLibrary\Support\FileName;
 use Spatie\MediaLibrary\Support\RemoteFile;
 use Symfony\Component\HttpFoundation\File\File as SymfonyFile;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -520,11 +521,15 @@ class FileAdder
         // Invalid utf-8 is replaced by `?`, and then by `-` below.
         $sanitizedFileName = (string) preg_replace('#\p{C}+#u', '', mb_scrub($fileName, 'UTF-8'));
 
-        // Windows does not allow a name to end with a dot or a space.
-        $sanitizedFileName = rtrim($sanitizedFileName, '. ');
+        // Windows does not allow a name to end with a dot or a space. Other unicode spaces go as well,
+        // or they would end up as a `-` behind the extension.
+        $sanitizedFileName = (string) preg_replace('#[.\p{Z}]+$#u', '', $sanitizedFileName);
+
+        // Every unicode space separator, such as the no-break spaces macOS puts in the names of screenshots.
+        $sanitizedFileName = (string) preg_replace('#\p{Z}#u', '-', $sanitizedFileName);
 
         // Characters that separate paths, or are not allowed in file names on Windows.
-        $sanitizedFileName = str_replace(['#', '/', '\\', ' ', ':', '*', '?', '"', '<', '>', '|'], '-', $sanitizedFileName);
+        $sanitizedFileName = str_replace(['#', '/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $sanitizedFileName);
 
         // Windows reserves device names, whatever the extension (`CON.txt`, `lpt1.tar.gz`).
         if (preg_match('/^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$|conout\$|clock\$)(\.|$)/iu', $sanitizedFileName)) {
@@ -559,11 +564,20 @@ class FileAdder
      * accept, whichever sanitizer, file namer or rename made it. A name may put the file in a
      * directory of its own (`other/file.jpg`), but not on a drive or in a data stream (`:`) on Windows.
      *
-     * @internal
+     * @internal Use {@see FileName} in an application.
      */
     public function guardAgainstUnsafeFileName(string $originalFileName, string $fileName): void
     {
-        if (strpbrk($fileName, '\\:') !== false || array_intersect(explode('/', $fileName), ['', '.', '..']) !== []) {
+        // Flysystem refuses a path with control or format characters, or one that is not valid utf-8.
+        if (preg_match('#\p{C}#u', $fileName) !== 0) {
+            throw FileNameNotAllowed::containsInvisibleCharacter($originalFileName, $fileName);
+        }
+
+        if (($character = strpbrk($fileName, '\\:')) !== false) {
+            throw FileNameNotAllowed::containsCharacter($originalFileName, $fileName, $character[0]);
+        }
+
+        if (array_intersect(explode('/', $fileName), ['', '.', '..']) !== []) {
             throw FileNameNotAllowed::leavesItsDirectory($originalFileName, $fileName);
         }
 
@@ -573,7 +587,8 @@ class FileAdder
     protected function guardAgainstDisallowedFileName(string $originalFileName, string $sanitizedFileName): void
     {
         // Windows drops the dots and spaces a name ends with: `shell.php.` is stored as `shell.php`.
-        $storedFileName = rtrim($sanitizedFileName, '. ');
+        // The sanitizer strips the other unicode spaces as well, so they do not hide a segment either.
+        $storedFileName = (string) preg_replace('#[.\p{Z}]+$#u', '', $sanitizedFileName);
 
         if (in_array(strtolower(basename($storedFileName)), static::$disallowedFileNames, true)) {
             throw FileNameNotAllowed::configuresTheServer($originalFileName, $sanitizedFileName);
@@ -596,7 +611,7 @@ class FileAdder
         $finalExtension = strtolower(pathinfo($storedFileName, PATHINFO_EXTENSION));
 
         if (! in_array($finalExtension, $allowedExtensions, true)) {
-            throw FileNameNotAllowed::create($originalFileName, $sanitizedFileName, $finalExtension ?: null);
+            throw FileNameNotAllowed::extensionIsNotAllowed($originalFileName, $sanitizedFileName, $finalExtension ?: null);
         }
     }
 
@@ -750,11 +765,11 @@ class FileAdder
     }
 
     /**
-     * Removing media removes its files, which a rolled back transaction around the addition would not bring back.
+     * @deprecated Keeps the limit at once. Override {@see keepCollectionSizeLimit()} instead.
      */
     protected function keepCollectionSizeLimitAfterCommit(HasMedia $model, Media $media): void
     {
-        $media->getConnection()->afterCommit(fn () => $this->keepCollectionSizeLimit($model, $media));
+        $this->keepCollectionSizeLimit($model, $media);
     }
 
     protected function discardMedia(HasMedia $model, Media $media): void
@@ -766,23 +781,43 @@ class FileAdder
         }
     }
 
+    /**
+     * The media that no longer fits is deleted right away, so the collection holds the newest media also
+     * before a transaction around the addition is committed. Its files are removed once that transaction
+     * is committed, as a rollback brings back the media but could not bring back its files.
+     */
     protected function keepCollectionSizeLimit(HasMedia $model, Media $media): void
     {
-        if ($collectionSizeLimit = optional($this->getMediaCollection($media->collection_name))->collectionSizeLimit) {
-            /** @var HasMedia */
-            $subject = $this->subject->fresh();
-            $collectionMedia = $subject->getMedia($media->collection_name);
-
-            if ($collectionMedia->count() > $collectionSizeLimit) {
-                $mediaToKeep = $collectionMedia
-                    ->reject(fn (Media $collectionItem) => $collectionItem->is($media))
-                    ->sortByDesc($media->getKeyName())
-                    ->take($collectionSizeLimit - 1)
-                    ->push($media);
-
-                $model->clearMediaCollectionExcept($media->collection_name, $mediaToKeep);
-            }
+        if (! $collectionSizeLimit = optional($this->getMediaCollection($media->collection_name))->collectionSizeLimit) {
+            return;
         }
+
+        /** @var HasMedia|null $subject */
+        $subject = $this->subject->fresh();
+
+        if (! $subject) {
+            return;
+        }
+
+        $collectionMedia = $subject->getMedia($media->collection_name);
+
+        if ($collectionMedia->count() <= $collectionSizeLimit) {
+            return;
+        }
+
+        $mediaToKeep = $collectionMedia
+            ->reject(fn (Media $collectionItem) => $collectionItem->is($media))
+            ->sortByDesc($media->getKeyName())
+            ->take($collectionSizeLimit - 1)
+            ->push($media);
+
+        // The model removes the media it has loaded, which is not what the database holds after a
+        // rollback, a transaction that was tried again or an addition through another instance.
+        $model->setRelation('media', $subject->media);
+
+        Media::removingFilesAfterCommit(
+            fn () => $model->clearMediaCollectionExcept($media->collection_name, $mediaToKeep)
+        );
     }
 
     protected function getMediaCollection(string $collectionName): ?MediaCollection

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\File;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\DiskDoesNotExist;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileDoesNotExist;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileNameNotAllowed;
 use Spatie\MediaLibrary\MediaCollections\FileAdder;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Tests\TestSupport\TestModels\TestModel;
@@ -219,4 +220,20 @@ it('removes its temporary copy when copying succeeds or fails', function () {
 
     expect(File::allFiles($temporaryDirectory))->toBe([])
         ->and(File::directories($temporaryDirectory))->toBe([]);
+});
+
+it('refuses to copy media whose stored name is no longer allowed unless another name is given', function () {
+    $model = TestModel::create(['name' => 'test']);
+
+    $media = $model->addMedia($this->getTestJpg())->toMediaCollection();
+
+    // A name stored by 1.x, which did not check the segments of a name.
+    rename($media->getPath(), dirname($media->getPath()).'/report.pl.jpg');
+    Media::whereKey($media->id)->toBase()->update(['file_name' => 'report.pl.jpg']);
+    $media = $media->fresh();
+
+    $anotherModel = TestModel::create(['name' => 'another-test']);
+
+    expect(fn () => $media->copy($anotherModel))->toThrow(FileNameNotAllowed::class)
+        ->and($media->copy($anotherModel, fileName: 'report.jpg')->getPath())->toBeFile();
 });

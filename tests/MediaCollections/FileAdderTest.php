@@ -23,7 +23,25 @@ it('sanitizes filenames correctly', function () {
 
     expect($adder->defaultSanitizer('Scan-‎9‎.‎14‎.‎2022-‎7‎.‎23‎.‎28.pdf'))
         ->toEqual('Scan-9.14.2022-7.23.28.pdf');
+
+    expect($adder->defaultSanitizer("Screenshot 2024-08-07 at 5.37.46\u{202F}PM.png"))
+        ->toEqual('Screenshot-2024-08-07-at-5.37.46-PM.png');
+
+    expect($adder->defaultSanitizer("test\u{00A0}one.pdf"))
+        ->toEqual('test-one.pdf');
 });
+
+it('strips the unicode spaces a file name ends with', function (string $fileName, string $sanitizedFileName) {
+    expect(app(FileAdder::class)->defaultSanitizer($fileName))->toBe($sanitizedFileName);
+})->with([
+    'no-break space' => ["report.pdf\u{00A0}", 'report.pdf'],
+    'ideographic space and dot' => ["report.pdf.\u{3000}", 'report.pdf'],
+    'only spaces' => ["\u{00A0}\u{2003}", 'file'],
+]);
+
+it('refuses a dangerous name that ends with a unicode space', function () {
+    app(FileAdder::class)->defaultSanitizer("shell.php\u{00A0}");
+})->throws(FileNameNotAllowed::class);
 
 it('sanitizes file names that are not valid on windows', function (string $fileName, string $sanitizedFileName) {
     expect(app(FileAdder::class)->defaultSanitizer($fileName))->toBe($sanitizedFileName);

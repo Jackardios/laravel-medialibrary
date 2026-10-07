@@ -88,6 +88,11 @@ class Media extends Model implements Attachable, Htmlable, Responsable
     protected int $streamChunkSize = (1024 * 1024); // default to 1MB chunks.
 
     /**
+     * How many {@see removingFilesAfterCommit()} calls are running.
+     */
+    private static int $removingFilesAfterCommit = 0;
+
+    /**
      * Conversion collections memoized by {@see getConversionCollection()}.
      *
      * Kept outside the instance on purpose: a WeakMap entry is not copied by
@@ -533,6 +538,37 @@ class Media extends Model implements Attachable, Htmlable, Responsable
     protected function originalUrl(): Attribute
     {
         return Attribute::get(fn () => $this->getUrl());
+    }
+
+    /**
+     * Media deleted while the callback runs lose their files only once the open transactions of their
+     * database connection are committed. Rolling them back brings back the media together with its files.
+     *
+     * After a commit a failure to remove the files is reported, not thrown. Without a transaction the
+     * files are removed right away and a failure is thrown, as when deleting a media otherwise.
+     *
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $callback
+     * @return TReturn
+     */
+    public static function removingFilesAfterCommit(callable $callback): mixed
+    {
+        self::$removingFilesAfterCommit++;
+
+        try {
+            return $callback();
+        } finally {
+            self::$removingFilesAfterCommit--;
+        }
+    }
+
+    /**
+     * @internal Read by the media observer.
+     */
+    public function shouldRemoveFilesAfterCommit(): bool
+    {
+        return self::$removingFilesAfterCommit > 0;
     }
 
     /** @param  string  $collectionName */

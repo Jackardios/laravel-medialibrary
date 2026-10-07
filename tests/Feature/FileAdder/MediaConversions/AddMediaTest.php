@@ -29,6 +29,10 @@ it('will not create a derived version for non registered collections', function 
 });
 
 it('will create a derived version for an image without an extension', function (string $driver) {
+    if ($driver === 'imagick' && ! canTestImagick()) {
+        $this->markTestSkipped('The imagick extension is not available.');
+    }
+
     config()->set('media-library.image_driver', $driver);
 
     $media = $this->testModelWithConversion
@@ -108,7 +112,7 @@ it('will not throw an exception when converting a pdf using gd', function () {
         ->toMediaCollection('images');
 
     expect($media->getPath('thumb'))->toBeFile();
-});
+})->skip(fn () => ! canTestPdfs(), 'Imagick, spatie/pdf-to-image or Ghostscript is not available.');
 
 it('can create a correct derived version of a pdf', function (string $driver) {
     config()->set('media-library.image_driver', $driver);
@@ -122,7 +126,7 @@ it('can create a correct derived version of a pdf', function (string $driver) {
     [$width, $height] = getimagesize($thumbPath);
     $this->assertLessThanOrEqual(50, $width, 'The width of the conversion is not 50px or less.');
     $this->assertLessThanOrEqual(50, $height, 'The height of the conversion is not 50px or less.');
-})->with(['gd', 'imagick']);
+})->with(['gd', 'imagick'])->skip(fn () => ! canTestPdfs(), 'Imagick, spatie/pdf-to-image or Ghostscript is not available.');
 
 it('can handle svgs correctly', function (string $driver) {
     config()->set('media-library.image_driver', $driver);
@@ -132,7 +136,7 @@ it('can handle svgs correctly', function (string $driver) {
         ->toMediaCollection('images');
 
     expect($media->getPath('thumb'))->toBeFile();
-})->with(['gd', 'imagick']);
+})->with(['gd', 'imagick'])->skip(fn () => ! canTestSvgs(), 'The imagick extension is not available.');
 
 it('will not create a derived version if manipulations did not change', function () {
     $media = $this->testModelWithConversion->addMedia($this->getTestJpg())->toMediaCollection('images');

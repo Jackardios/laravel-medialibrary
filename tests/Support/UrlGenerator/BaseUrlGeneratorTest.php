@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Storage;
 use Spatie\MediaLibrary\Conversions\ConversionCollection;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\Support\PathGenerator\DefaultPathGenerator;
 use Spatie\MediaLibrary\Support\UrlGenerator\DefaultUrlGenerator;
 
@@ -119,3 +120,53 @@ it('leaves out the version of media without an update time', function () {
     expect($media->getUrl())->toBe("/media/{$media->id}/test.jpg")
         ->and($media->getResponsiveImageUrls())->each->not->toContain('?v=');
 });
+
+it('encodes the path on a scoped disk the way the disk it scopes needs', function (array $parent, string $expectedPath) {
+    config()->set('filesystems.disks.parent', $parent);
+    config()->set('filesystems.disks.scoped', ['driver' => 'scoped', 'disk' => 'parent', 'prefix' => 'tenant']);
+    config()->set('filesystems.disks.scopedTwice', ['driver' => 'scoped', 'disk' => 'scoped', 'prefix' => 'team']);
+    config()->set('filesystems.disks.scopedInline', ['driver' => 'scoped', 'disk' => $parent, 'prefix' => 'tenant']);
+
+    $urlGenerator = new class($this->config) extends DefaultUrlGenerator
+    {
+        public function encode(string $path, string $diskName): string
+        {
+            return $this->urlEncodePathForDisk($path, $diskName);
+        }
+    };
+
+    expect($urlGenerator->encode('1/IMG 5405%café.jpg', 'scoped'))->toBe($expectedPath)
+        ->and($urlGenerator->encode('1/IMG 5405%café.jpg', 'scopedTwice'))->toBe($expectedPath)
+        ->and($urlGenerator->encode('1/IMG 5405%café.jpg', 'scopedInline'))->toBe($expectedPath);
+})->with([
+    'local disk' => [['driver' => 'local', 'root' => '/tmp'], '1/IMG%205405%25caf%C3%A9.jpg'],
+    's3 with a base url' => [['driver' => 's3', 'url' => 'https://cdn.example.com'], '1/IMG%205405%25caf%C3%A9.jpg'],
+    's3 without a base url' => [['driver' => 's3'], '1/IMG 5405%café.jpg'],
+]);
+
+it('encodes the directory of the responsive images', function () {
+    config()->set('media-library.path_generator', UnicodeDirectoryPathGenerator::class);
+
+    $media = $this->testModelWithConversion
+        ->addMedia($this->getTestJpg())
+        ->preservingOriginal()
+        ->withResponsiveImages()
+        ->toMediaCollection();
+
+    expect($media->getUrl())->toBe("/media/%D1%84%D0%BE%D1%82%D0%BE%20%231/{$media->id}/test.jpg")
+        ->and($media->fresh()->getResponsiveImageUrls())->not->toBeEmpty()
+        ->each->toStartWith("/media/%D1%84%D0%BE%D1%82%D0%BE%20%231/{$media->id}/responsive/test___media_library_original_");
+});
+
+class UnicodeDirectoryPathGenerator extends DefaultPathGenerator
+{
+    protected function getBasePath(Media $media): string
+    {
+        return 'фото #1/'.parent::getBasePath($media);
+    }
+
+    public function getPathForResponsiveImages(Media $media): string
+    {
+        return $this->getBasePath($media).'/responsive/';
+    }
+}

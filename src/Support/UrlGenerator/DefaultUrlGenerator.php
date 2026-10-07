@@ -35,7 +35,9 @@ class DefaultUrlGenerator extends BaseUrlGenerator
         $path = $this->pathGenerator->getPathForResponsiveImages($this->media);
 
         // Responsive images, including those of the original, are stored on the conversions disk.
-        return Str::finish(Storage::disk($this->media->conversions_disk)->url($path), '/');
+        $disk = $this->media->conversions_disk;
+
+        return Str::finish(Storage::disk($disk)->url($this->urlEncodePathForDisk($path, $disk)), '/');
     }
 
     protected function getRootOfDisk(): string

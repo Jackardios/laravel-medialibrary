@@ -91,6 +91,39 @@ $yourModel
 
 **Security note.** By default, Media Library rejects uploads whose file name contains a potentially executable extension such as `.php` or `.phtml`. The check looks at every extension segment in the name, so `malicious.php.jpg` is blocked too. Files that configure PHP or the web server for their directory (`.htaccess`, `.user.ini`, `web.config`) are rejected as well. The check also applies to the name your own `sanitizingFileName` callable or file namer returns, and to the new name of a renamed media. A name that leaves its directory (`..`, a leading `/`, a backslash) or names a Windows drive or data stream (`:`) is rejected too, and the checks ignore the dots and spaces Windows drops from the end of a name (`shell.php.`).
 
+A refused name throws `Spatie\MediaLibrary\MediaCollections\Exceptions\FileNameNotAllowed`. To answer with a validation error instead, check the name before you add or rename the media with `Spatie\MediaLibrary\Support\FileName`:
+
+```php
+use Spatie\MediaLibrary\Support\FileName;
+
+FileName::isAllowed('report.pl.jpg'); // false
+FileName::isAllowed('a:b.jpg'); // false
+FileName::isAllowed('other/photo.jpg'); // true: the file gets a directory of its own
+
+FileName::guard('report.pl.jpg'); // throws FileNameNotAllowed, its message has the reason
+
+FileName::sanitize('my photo: 1.jpg'); // 'my-photo--1.jpg', the name an added file would get
+```
+
+`sanitize()` throws `FileNameNotAllowed` when the sanitized name has a refused extension; every name it returns is allowed. For example, to rename a media to a name a user typed:
+
+```php
+// in a form request
+'file_name' => ['required', 'string', function (string $attribute, mixed $value, Closure $fail) {
+    try {
+        FileName::sanitize($value);
+    } catch (FileNameNotAllowed) {
+        $fail('This file name is not allowed.');
+    }
+}],
+
+// with the validated name
+$media->file_name = FileName::sanitize($validated['file_name']);
+$media->save();
+```
+
+`isAllowed()`, `guard()` and `sanitize()` follow `allowed_extensions` and `disallowed_extensions`. `isAllowed()` tells whether the name is refused, not whether it is tidy: a name with spaces in it is allowed. A name with control or format characters (a line break, a zero width joiner as in some emoji) is refused, as the filesystem does not store such a path; `sanitize()` removes these characters. Use `sanitize()` for a name a user typed.
+
 The blocked extensions can be configured (and an opt-in allowlist enabled) in `config/media-library.php`:
 
 ```php

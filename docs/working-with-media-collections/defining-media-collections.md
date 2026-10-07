@@ -238,6 +238,8 @@ $yourModel->getMedia('avatar')->count(); // returns 3
 $yourModel->getFirstMediaUrl('avatar'); // will return an url to the `$secondFile` file
 ```
 
+The media that no longer fits is deleted as soon as the new one is added, and its `deleted` event fires then. When you add media inside a database transaction, the files of the deleted media stay on the disk until the transaction is committed: rolling it back brings back the older media together with its files. To delete other media that way, wrap the deletion: `Media::removingFilesAfterCommit(fn () => $media->delete())`.
+
 ## Registering media conversions
 
 It's recommended that your first read the section on [converting images](../converting-images/defining-conversions.md) before reading the following paragraphs.
