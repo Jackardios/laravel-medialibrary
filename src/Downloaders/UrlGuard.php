@@ -56,7 +56,9 @@ class UrlGuard
 
     public function isPublic(string $address): bool
     {
-        if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_GLOBAL_RANGE) === false) {
+        // PHP 8.5 gave FILTER_THROW_ON_FAILURE the value this flag has before 8.5, so on an older
+        // PHP PHPStan 2.3 takes the call for one that throws instead of returning false.
+        if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_GLOBAL_RANGE) === false) { // @phpstan-ignore identical.alwaysFalse
             return false;
         }
 
